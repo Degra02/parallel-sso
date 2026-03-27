@@ -18,15 +18,19 @@ typedef enum {
 /// @brief  Configuration for the SSO algorithm
 typedef struct {
   // population size
+  // Default = 100
   uint32_t np;
 
   // decision variables
+  // Default = 30
   uint32_t nd;
 
   // maximum stages
+  // Default = 1000
   uint32_t k_max;
 
   // number of points in the local search of each stage
+  // Default = 10
   uint32_t m;
 
   // gradient scaling factor. 
@@ -41,7 +45,10 @@ typedef struct {
   // Default = 4
   double b_k;
 
+  // objective function to optimize
+  // Default = OBJ_RASTRIGIN
   ObjectiveFunction obj;
+
   uint64_t seed;
 } SSOConfig;
 

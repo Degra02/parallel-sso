@@ -13,6 +13,19 @@ ObjectiveFunction lookup_obj(const char *name) {
 
 void parse_args(int argc, char **argv, SSOConfig *cfg) {
     int opt, idx;
+
+    *cfg = (SSOConfig){
+        .np = 100,
+        .nd = 30,
+        .k_max = 1000,
+        .m = 10,
+        .n_k = 0.9,
+        .a_k = 0.1,
+        .b_k = 4.0,
+        .obj = OBJ_RASTRIGIN,
+        .seed = 0
+    };
+
     while ((opt = getopt_long(argc, argv, "", long_opts, &idx)) != -1) {
         switch (opt) {
             case 1: cfg->np   = (uint32_t)atoi(optarg); break;
