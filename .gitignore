@@ -1,0 +1,5 @@
+sso_serial
+sso_mpi
+
+*.o
+*.txt
