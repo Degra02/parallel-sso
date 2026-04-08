@@ -41,7 +41,6 @@ double schaffer(const double *x, uint32_t nd);
 
 // 3 OF dispatcher 
 double eval_min(const double *x, uint32_t nd, ObjectiveFunction obj);
-// inline double OF(const double *x, uint32_t nd, ObjectiveFunction obj);
 
 inline double OF(const double *x, uint32_t nd, ObjectiveFunction obj) {
     return -eval_min(x, nd, obj);

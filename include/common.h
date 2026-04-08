@@ -47,19 +47,6 @@ typedef struct {
   uint64_t seed;
 } SSOConfig;
 
-static struct option long_opts[] = {
-    {"np",    required_argument, 0, 1},
-    {"nd",    required_argument, 0, 2},
-    {"k_max",  required_argument, 0, 3},
-    {"m",     required_argument, 0, 4},
-    {"n_k",   required_argument, 0, 5},
-    {"a_k",   required_argument, 0, 6},
-    {"b_k",   required_argument, 0, 7},
-    {"seed",  required_argument, 0, 8},
-    {"obj", required_argument, 0, 9},
-    {0, 0, 0, 0}
-};
-
 ObjectiveFunction lookup_obj(const char *name);
 void parse_args(int argc, char **argv, SSOConfig *cfg);
 
