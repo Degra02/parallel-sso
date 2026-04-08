@@ -7,13 +7,8 @@
 #include <getopt.h>
 #include <string.h>
 
-/// @brief  Objective functions (taken from the paper)
-typedef enum {
-  OBJ_RASTRIGIN = 0,
-  OBJ_GRIEWANGK = 1,
-  OBJ_SCHAFFER = 2,
-  /// TODO: Add more objective functions
-} ObjectiveFunction;
+#include "ofuncs.h"
+
 
 /// @brief  Configuration for the SSO algorithm
 typedef struct {
@@ -51,19 +46,6 @@ typedef struct {
 
   uint64_t seed;
 } SSOConfig;
-
-
-typedef struct {
-    const char *name;
-    ObjectiveFunction value;
-} ObjEntry;
-
-static const ObjEntry obj_registry[] = {
-    {"rastrigin", OBJ_RASTRIGIN},
-    {"griewangk",  OBJ_GRIEWANGK},
-    {"schaffer",   OBJ_SCHAFFER},
-    {NULL, 0}
-};
 
 static struct option long_opts[] = {
     {"np",    required_argument, 0, 1},

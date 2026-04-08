@@ -1,19 +1,65 @@
+# Compilers
 CC := gcc
 MPICC ?= mpicc
-CFLAGS := -O3 -Wall -Wextra -Iinclude
+
+# Directories
+SRC_DIR := src
+INC_DIR := include
+BUILD_DIR := build
+
+# Source files
+COMMON_SRCS := $(SRC_DIR)/common.c $(SRC_DIR)/ofuncs.c
+HEADERS := $(wildcard $(INC_DIR)/*.h)
+
+# Main source files for each executable
+SERIAL_MAIN := $(SRC_DIR)/serial_main.c
+MPI_MAIN := $(SRC_DIR)/mpi_main.c
+
+# Object files
+COMMON_OBJS := $(patsubst $(SRC_DIR)/%.c,$(BUILD_DIR)/%.o,$(COMMON_SRCS))
+SERIAL_OBJS := $(BUILD_DIR)/serial_main.o $(COMMON_OBJS)
+MPI_OBJS := $(BUILD_DIR)/mpi_main.o $(COMMON_OBJS)
+
+# Executables
+SERIAL_BIN := sso_serial
+MPI_BIN := sso_mpi
+
+# Compiler flags
+CFLAGS := -O2 -Wall -Wextra -I$(INC_DIR)
 LDFLAGS := -lm
 
-SRC_COMMON := src/common.c
+# Default target
+all: $(SERIAL_BIN) $(MPI_BIN)
 
-all: sso_serial sso_mpi
+# Create build directory
+$(BUILD_DIR):
+	@mkdir -p $(BUILD_DIR)
 
-sso_serial: src/serial_main.c $(SRC_COMMON) include/common.h
-	$(CC) $(CFLAGS) -o $@ src/serial_main.c $(SRC_COMMON) $(LDFLAGS)
+# Pattern rule for object files
+$(BUILD_DIR)/%.o: $(SRC_DIR)/%.c $(HEADERS) | $(BUILD_DIR)
+	$(CC) $(CFLAGS) -c $< -o $@
 
-sso_mpi: src/mpi_main.c $(SRC_COMMON) include/common.h
-	$(MPICC) $(CFLAGS) -o $@ src/mpi_main.c $(SRC_COMMON) $(LDFLAGS)
+# Serial executable
+$(SERIAL_BIN): $(SERIAL_OBJS)
+	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
 
+# MPI executable
+$(MPI_BIN): $(MPI_OBJS)
+	$(MPICC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
+
+# Convenience targets
 clean:
-	rm -f sso_serial sso_mpi
+	rm -rf $(BUILD_DIR) $(SERIAL_BIN) $(MPI_BIN)
 
-.PHONY: all clean
+distclean: clean
+
+help:
+	@echo "Available targets:"
+	@echo "  all       - Build all executables (default)"
+	@echo "  $(SERIAL_BIN)  - Build serial version"
+	@echo "  $(MPI_BIN)    - Build MPI version"
+	@echo "  clean     - Remove build artifacts and executables"
+	@echo "  distclean - Same as clean"
+	@echo "  help      - Show this help message"
+
+.PHONY: all clean distclean help
