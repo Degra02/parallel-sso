@@ -11,14 +11,14 @@
  *  3. Return the best individual found across all stages.
  */
 
-#include "common.h"
+#include "parse_args.h"
 #include "ofuncs.h"
 
 #include <math.h>
 #include <time.h>
 
 
-/* 
+/*
  *  4 – Numerical gradient of OF  (Eq. 6)
  *
  *  Central-difference approximation:
@@ -74,10 +74,11 @@ static inline double randm11(void) {
 }
 
 // 6  Main
-int main(int argc, char const *argv[]) {
-
-    SSOConfig cfg;
-    parse_args(argc, (char **)argv, &cfg);
+int main(int argc, char *argv[]) {
+    struct SSOConfig cfg;
+    if (parse_args(argc, argv, &cfg) != 0) {
+        return 1;
+    }
 
     /* Seed the PRNG; 0 → time-based non-reproducible run. */
     srand(cfg.seed == 0 ? (unsigned)time(NULL) : (unsigned)cfg.seed);
@@ -86,10 +87,10 @@ int main(int argc, char const *argv[]) {
     const uint32_t NP   = cfg.np;     /* population size                  */
     const uint32_t ND   = cfg.nd;     /* number of decision variables      */
     const uint32_t KMAX = cfg.k_max;  /* maximum stages                   */
-    const uint32_t M    = cfg.m;      /* rotational-search probe points    */
-    const double   nk   = cfg.n_k;   /* γ – gradient scaling factor       */
-    const double   ak   = cfg.a_k;   /* α – momentum (inertia) rate       */
-    const double   bk   = cfg.b_k;   /* β – velocity limiter ratio        */
+    const uint32_t M    = cfg.rotations;      /* rotational-search probe points    */
+    const double   nk   = cfg.mu;   /* γ – gradient scaling factor       */
+    const double   ak   = cfg.alpha;   /* α – momentum (inertia) rate       */
+    const double   bk   = cfg.beta;   /* β – velocity limiter ratio        */
     const ObjectiveFunction obj = cfg.obj;
 
     printf("=== SSO Serial  ===\n");
@@ -155,7 +156,7 @@ int main(int argc, char const *argv[]) {
     /* Global best tracked as a minimisation value (f, not OF). */
     double best_min = 1e300;
 
-    /* 
+    /*
      * Step 2 – Evolution loop
     * Stages k = 0 … KMAX-1
      */
@@ -163,7 +164,7 @@ int main(int argc, char const *argv[]) {
 
         for (uint32_t i = 0; i < NP; i++) {
 
-            /* A. Numerical gradient  (Eq. 6) 
+            /* A. Numerical gradient  (Eq. 6)
              *
              * grad[j] = ∂OF/∂xj | X^k_i
              *
@@ -267,7 +268,7 @@ int main(int argc, char const *argv[]) {
         if (k == 0 || (k + 1) % 100 == 0)
             printf("Stage %5u | best f(x) = %.8e\n", k + 1, best_min);
 
-    } 
+    }
 
     /* Step 3 – Report final result*/
 

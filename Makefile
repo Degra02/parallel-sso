@@ -8,7 +8,7 @@ INC_DIR := include
 BUILD_DIR := build
 
 # Source files
-COMMON_SRCS := $(SRC_DIR)/common.c $(SRC_DIR)/ofuncs.c
+COMMON_SRCS := $(SRC_DIR)/parse_args.c $(SRC_DIR)/ofuncs.c
 HEADERS := $(wildcard $(INC_DIR)/*.h)
 
 # Main source files for each executable
