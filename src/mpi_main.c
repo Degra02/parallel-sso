@@ -1,4 +1,4 @@
-#include "parse_args.h"
+#include "sso/parse_args.h"
 
 int main(int argc, char *argv[]) {
     struct SSOConfig cfg;

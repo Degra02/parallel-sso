@@ -11,15 +11,13 @@
  *  3. Return the best individual found across all stages.
  */
 
-#include "parse_args.h"
-#include "ofuncs.h"
-#include "sso.h"
+#include "sso/parse_args.h"
+#include "sso/ofuncs.h"
+#include "sso/sso.h"
 
 #include <math.h>
 #include <time.h>
 #include <stdlib.h>
-
-
 
 static void print_info(const struct SSOConfig *cfg) {
     printf("=== SSO Serial  ===\n");
@@ -34,12 +32,13 @@ static void print_result(double best_min, const double *best_pos, size_t nd) {
     printf("\n=== Final Result ===\n");
     printf("Best f(x) = %.10e\n", best_min);
 
-    uint32_t show = (nd < 8) ? nd : 8;  /* truncate long position vectors */
+    size_t count_per_row = 8;
     printf("Best x    = [");
-    for (uint32_t j = 0; j < show; j++)
-        printf(" %.6f", best_pos[j]);
-    if (nd > show) printf(" ... (%lu total dims)", nd);
-    printf(" ]\n");
+    for (uint32_t j = 0; j < nd; j++) {
+        if (j % count_per_row == 0) printf("\n");
+        printf(" %9.6f", best_pos[j]);
+    }
+    printf("\n]\n");
 }
 
 /**
@@ -53,21 +52,21 @@ int main(int argc, char *argv[]) {
         return EXIT_FAILURE;
     }
 
-    /* Seed the PRNG to have reproducible runs. 0 for time-based randomness */
+    // Seed the PRNG to have reproducible runs. 0 for time-based randomness.
     srand(cfg.seed == 0 ? (unsigned) time(NULL) : (unsigned) cfg.seed);
 
     print_info(&cfg);
 
-    /* Domain bounds */
+    // Domain bounds.
     struct Interval *domain = obj_alloc_domain_bounds(cfg.obj, cfg.nd);
 
-    /* Alloc population sharks at random positions in the domain, with 0 speed */
+    // Alloc population sharks at random positions in the domain, with 0 speed.
     struct Shark *sharks = sso_sharks_alloc(domain, &cfg);
 
-    /* Scratch array to avoid allocations in loops */
+    // Scratch array to avoid allocations in loops.
     double *scratch = calloc(cfg.nd, sizeof(double));
 
-    /* The best position found up to date. */
+    // The best position found up to date.
     double *best_pos = calloc(cfg.nd, sizeof(double));
 
     int ret;
@@ -75,26 +74,26 @@ int main(int argc, char *argv[]) {
         perror("Malloc error");
         ret = EXIT_FAILURE;
     } else {
-        /* Global best tracked as a minimisation value (f, not OF). */
+        // Global best. Minimisation problem.
         double best_min = INFINITY;
 
-        /* Perform k_max movement stages. */
+        // Perform k_max movement stages.
         for (size_t k = 0; k < cfg.k_max; ++k) {
             sso_perform_step(sharks, &cfg, domain, scratch, &best_min, best_pos);
 
-            /* Progress report every 100 stages (and on the first). */
+            // Progress report every 100 stages.
             if (k == 0 || (k + 1) % 100 == 0) {
                 printf("Stage %5lu | best f(x) = %.8e\n", k + 1, best_min);
             }
         }
 
-        /* Report final result */
+        // Print final result.
         print_result(best_min, best_pos, cfg.nd);
 
         ret = EXIT_SUCCESS;
     }
 
-    /* Cleanup */
+    // Cleanup
     free(best_pos);
     free(scratch);
     sso_sharks_free(sharks, cfg.np);

@@ -8,7 +8,7 @@ INC_DIR := include
 BUILD_DIR := build
 
 # Source files
-COMMON_SRCS := $(SRC_DIR)/parse_args.c $(SRC_DIR)/ofuncs.c $(SRC_DIR)/sso.c
+COMMON_SRCS := $(SRC_DIR)/sso/parse_args.c $(SRC_DIR)/sso/ofuncs.c $(SRC_DIR)/sso/sso.c
 HEADERS := $(wildcard $(INC_DIR)/*.h)
 
 # Main source files for each executable
@@ -33,7 +33,7 @@ all: $(SERIAL_BIN) $(MPI_BIN)
 
 # Create build directory
 $(BUILD_DIR):
-	@mkdir -p $(BUILD_DIR)
+	@mkdir -p $(BUILD_DIR)/sso
 
 # Pattern rule for object files
 $(BUILD_DIR)/%.o: $(SRC_DIR)/%.c $(HEADERS) | $(BUILD_DIR)
