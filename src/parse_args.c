@@ -16,7 +16,7 @@ static struct argp_option options[] = {
     {"nd",          'd', "int"  , 0, "The number of decision variables.",       0},
     {"k_max",       'k', "int"  , 0, "The number of stages.",                   0},
     {"rotations",   'm', "int"  , 0, "Rotational points to check at each step.",2},
-    {"mu",          'n', "[0-1]", 0, "Gradient scaling factor.",                0},
+    {"eta",         'n', "[0-1]", 0, "Gradient scaling factor.",                0},
     {"alpha",       'a', "[0-1]", 0, "Momentum (inertia) rate.",                0},
     {"beta",        'b', "[0-1]", 0, "Velocity limiter ratio.",                 0},
     {"seed",        's', "int"  , 0, "PRNG seed (0 for random).",               3},
@@ -36,15 +36,15 @@ static struct argp argp = { options, parser, args_doc, doc, 0, 0, 0 };
  */
 error_t parse_args(int argc, char *argv[], struct SSOConfig *config) {
     *config = (struct SSOConfig) {
-        .np = 100,
-        .nd = 30,
-        .k_max = 1000,
-        .rotations = 10,
-        .mu = 0.9,
-        .alpha = 0.1,
-        .beta = 4.0,
-        .obj = OBJ_RASTRIGIN,
-        .seed = 1,
+        .np         = 100,
+        .nd         = 30,
+        .k_max      = 1000,
+        .rotations  = 10,
+        .eta        = 0.9,
+        .alpha      = 0.1,
+        .beta       = 4.0,
+        .obj        = OBJ_RASTRIGIN,
+        .seed       = 1,
     };
 
     return argp_parse(&argp, argc, argv, 0, 0, config);
@@ -52,8 +52,8 @@ error_t parse_args(int argc, char *argv[], struct SSOConfig *config) {
 
 #define RET_PARSE(size, args, field, val, ...) do {                            \
         char *end;                                                             \
-        args->field = strto##size(val, &end __VA_OPT__(,) __VA_ARGS__);        \
-        if (*val == 0 || *end != 0) {                                          \
+        (args)->field = strto##size((val), &end __VA_OPT__(,) __VA_ARGS__);    \
+        if (*(val) == 0 || *end != 0) {                                          \
             perror("Couldn't parse " #field);                                  \
             return -1;                                                         \
         }                                                                      \
@@ -92,7 +92,7 @@ static error_t parser(int key, char *arg, struct argp_state *state) {
         case 'm':
             RET_PARSE_ULL(args, rotations, arg);
         case 'n':
-            RET_PARSE_D(args, mu, arg);
+            RET_PARSE_D(args, eta, arg);
         case 'a':
             RET_PARSE_D(args, alpha, arg);
         case 'b':

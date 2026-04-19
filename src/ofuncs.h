@@ -25,8 +25,7 @@ static const ObjEntry obj_registry[] = {
     {NULL, 0}
 };
 
-double domain_lb(ObjectiveFunction obj);
-double domain_ub(ObjectiveFunction obj);
+struct Interval *obj_alloc_domain_bounds(ObjectiveFunction obj, size_t dim_num);
 
 // Benchmark object functions
 
@@ -42,7 +41,7 @@ double schaffer(const double *x, uint32_t nd);
 // 3 OF dispatcher 
 double eval_min(const double *x, uint32_t nd, ObjectiveFunction obj);
 
-inline double OF(const double *x, uint32_t nd, ObjectiveFunction obj) {
+static inline double OF(const double *x, uint32_t nd, ObjectiveFunction obj) {
     return -eval_min(x, nd, obj);
 }
 

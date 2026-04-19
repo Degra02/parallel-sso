@@ -8,7 +8,7 @@ INC_DIR := include
 BUILD_DIR := build
 
 # Source files
-COMMON_SRCS := $(SRC_DIR)/parse_args.c $(SRC_DIR)/ofuncs.c
+COMMON_SRCS := $(SRC_DIR)/parse_args.c $(SRC_DIR)/ofuncs.c $(SRC_DIR)/sso.c
 HEADERS := $(wildcard $(INC_DIR)/*.h)
 
 # Main source files for each executable
@@ -25,7 +25,7 @@ SERIAL_BIN := sso_serial
 MPI_BIN := sso_mpi
 
 # Compiler flags
-CFLAGS := -O2 -Wall -Wextra -I$(INC_DIR)
+CFLAGS := -O2 -Wall -Wextra -Wpedantic -I$(INC_DIR)
 LDFLAGS := -lm
 
 # Default target

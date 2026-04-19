@@ -1,7 +1,9 @@
 #include "ofuncs.h"
+#include "types.h"
+#include <stdlib.h>
 
 // 1 Domain bounds
-double domain_lb(ObjectiveFunction obj) {
+static double domain_lowerbound(ObjectiveFunction obj, [[maybe_unused]] size_t dim) {
     switch (obj) {
         case OBJ_RASTRIGIN: return -20.0;   /* paper Eq. 12: -20 ≤ xi ≤ 20   */
         case OBJ_GRIEWANGK: return -600.0;  /* paper Eq. 13: -600 ≤ xk ≤ 600 */
@@ -10,13 +12,27 @@ double domain_lb(ObjectiveFunction obj) {
     }
 }
 
-double domain_ub(ObjectiveFunction obj) {
+static double domain_upperbound(ObjectiveFunction obj, [[maybe_unused]] size_t dim) {
     switch (obj) {
         case OBJ_RASTRIGIN: return  20.0;
         case OBJ_GRIEWANGK: return  600.0;
         case OBJ_SCHAFFER:  return  100.0;
         default:            return  100.0;
     }
+}
+
+struct Interval *obj_alloc_domain_bounds(ObjectiveFunction obj, size_t dim_num) {
+    struct Interval *domain = calloc(dim_num, sizeof(struct Interval));
+    if (domain == NULL) return NULL;
+
+    for (size_t j = 0; j < dim_num; ++j) {
+        domain[j] = (struct Interval) {
+            .start = domain_lowerbound(obj, j),
+            .end = domain_upperbound(obj, j)
+        };
+    }
+
+    return domain;
 }
 
 
@@ -32,7 +48,6 @@ double rastrigin(const double *x, uint32_t nd) {
 }
 
 //Griegwangk eq 13:
-
 double griewangk(const double *x, uint32_t nd) {
     double sum = 0.0, prod = 1.0;
     for (uint32_t k = 0; k < nd; k++) {
@@ -43,7 +58,6 @@ double griewangk(const double *x, uint32_t nd) {
 }
 
 // Schaffer eq 14:
-
 double schaffer(const double *x, uint32_t nd) {
     (void)nd;
     double r2   = x[0]*x[0] + x[1]*x[1];
@@ -54,7 +68,7 @@ double schaffer(const double *x, uint32_t nd) {
     return 0.5 + (sin2 - 0.5) / denom;
 }
 
-// 3 OF dispatcher 
+// 3 OF dispatcher
 
 double eval_min(const double *x, uint32_t nd, ObjectiveFunction obj) {
     switch (obj) {

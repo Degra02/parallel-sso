@@ -17,23 +17,23 @@
 struct SSOConfig {
     // population size
     // Default = 100
-    uint32_t np;
+    size_t np;
 
     // decision variables
     // Default = 30
-    uint32_t nd;
+    size_t nd;
 
     // maximum stages
     // Default = 1000
-    uint32_t k_max;
+    size_t k_max;
 
     // number of points in the local search of each stage
     // Default = 10
-    uint32_t rotations;
+    size_t rotations;
 
     // gradient scaling factor.
     // Default = 0.9
-    double mu;
+    double eta;
 
     // inertia coefficient or momentum rate.
     // Default = 0.1
