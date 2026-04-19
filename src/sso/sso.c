@@ -71,7 +71,7 @@ void sso_update_speed(struct Shark *shark, const struct SSOConfig *cfg,
         if (fabs(v_prev) >= 1e-15) {
             // Limit the velocity up to β·v.
             double limit = cfg->beta * v_prev;
-            if (fabs(shark->speed[dim]) <= fabs(limit)) {
+            if (fabs(shark->speed[dim]) > fabs(limit)) {
                 shark->speed[dim] = limit;
             }
         }
