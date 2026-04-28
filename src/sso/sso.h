@@ -1,19 +1,19 @@
 #ifndef SSO_H_INCLUDED
 #define SSO_H_INCLUDED
 
-#include <stdint.h>
-#include <stdlib.h>
 #include "ofuncs.h"
 #include "parse_args.h"
+#include <stdint.h>
+#include <stdlib.h>
 
 /**
  * @struct Shark
  * @brief Status of one shark in the population.
  */
 struct Shark {
-    double *position;   /**< Current position of the shark. */
-    double *speed;      /**< Current speed of the shark. */
-    double pos_score;   /**< The OF(position) value. */
+  double *position; /**< Current position of the shark. */
+  double *speed;    /**< Current speed of the shark. */
+  double pos_score; /**< The OF(position) value. */
 };
 
 /**
@@ -41,8 +41,10 @@ void sso_move_forward(struct Shark *shark, const struct SSOConfig *cfg,
  * @param shark The shark that must be teleported.
  * @param cfg The SSO parameters.
  * @domain The objective function domain.
- * @domain candidate A preallocated support array to store candidates. Size cfg->nd.
- * @post shark->pos_score is updated with the value corresponding to shark->position.
+ * @domain candidate A preallocated support array to store candidates. Size
+ * cfg->nd.
+ * @post shark->pos_score is updated with the value corresponding to
+ * shark->position.
  */
 void sso_unrotational_search(struct Shark *shark, const struct SSOConfig *cfg,
                              const struct Interval *domain, double *candidate);
@@ -53,7 +55,8 @@ void sso_unrotational_search(struct Shark *shark, const struct SSOConfig *cfg,
  * @param cfg The SSO parameters.
  * @param domain The objective function domain.
  * @param scratch A general purpose cfg->nd sized array.
- * @param best_min Contains the current best, updated with the best value after the iteration.
+ * @param best_min Contains the current best, updated with the best value after
+ * the iteration.
  * @param best_pos Updated with the best position after the iteration.
  */
 void sso_perform_step(struct Shark *sharks, const struct SSOConfig *cfg,
