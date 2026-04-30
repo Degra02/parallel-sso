@@ -18,19 +18,7 @@
 static void compute_gradient(double pos[], const struct SSOConfig *cfg,
                              const struct Interval domain[], double grad[]) {
     for (size_t dim = 0; dim < cfg->nd; ++dim) {
-        const double pos_dim = pos[dim];
-
-        // Clamp perturbed points to stay inside the feasible domain.
-        double pos_prev = fmax(pos_dim - GRAD_H, domain[dim].start);
-        double pos_next = fmin(pos_dim + GRAD_H, domain[dim].end);
-
-        double h_eff = pos_next - pos_prev;
-        if (h_eff < 1e-15) {
-            // Gradient is not defined on the boundary, treat as 0.
-            grad[dim] = 0.0;
-        } else {
-            grad[dim] = eval_derivative(pos, cfg->nd, cfg->obj, dim);
-        }
+        grad[dim] = eval_derivative(pos, cfg->nd, cfg->obj, dim);
     }
 }
 
@@ -96,13 +84,13 @@ void sso_unrotational_search(struct Shark *shark, const struct SSOConfig *cfg,
                              const struct Interval domain[], double candidate[]) {
 
     // Current best candidate, initialized with the current shark position.
-    double best = shark->pos_score = OF(shark->position, cfg->nd, cfg->obj);
+    double best = OF(shark->position, cfg->nd, cfg->obj);
     double best_r3 = 0.0;
 
     for (uint32_t m = 0; m < cfg->rotations; ++m) {
         double r3 = utils_rand(-1, 1);
         // "Rotate" around the shark position.
-        for (uint32_t dim = 0; dim < cfg->nd; ++dim) {
+        for (size_t dim = 0; dim < cfg->nd; ++dim) {
             candidate[dim] = shark->position[dim] * (1 + r3);
         }
         utils_clamp_vec(candidate, cfg->nd, domain);
@@ -119,7 +107,7 @@ void sso_unrotational_search(struct Shark *shark, const struct SSOConfig *cfg,
     // Update position with the best one.
     // TODO: better to compute only once? How many times we should update it in avg?
     if (best_r3 != 0.0) {
-        for (uint32_t dim = 0; dim < cfg->nd; ++dim) {
+        for (size_t dim = 0; dim < cfg->nd; ++dim) {
             shark->position[dim] = shark->position[dim] * (1 + best_r3);
         }
         utils_clamp_vec(shark->position, cfg->nd, domain);
