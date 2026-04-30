@@ -29,16 +29,7 @@ static void compute_gradient(double pos[], const struct SSOConfig *cfg,
             // Gradient is not defined on the boundary, treat as 0.
             grad[dim] = 0.0;
         } else {
-            // TODO: not an optimal approach if parallelized.
-            // Do we need to parallelize this? Otherwise we need to allocate
-            // multiple arrays and copy positions. Or make ofunc gradient aware.
-            pos[dim] = pos_prev;
-            double of_prev = OF(pos, cfg->nd, cfg->obj);
-            pos[dim] = pos_next;
-            double of_next = OF(pos, cfg->nd, cfg->obj);
-            grad[dim] = (of_next - of_prev) / h_eff;
-            // Restore position.
-            pos[dim] = pos_dim;
+            grad[dim] = eval_derivative(pos, cfg->nd, cfg->obj, dim);
         }
     }
 }
