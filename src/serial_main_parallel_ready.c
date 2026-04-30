@@ -105,7 +105,11 @@ int main(int argc, char *argv[]) {
                             shark_ptr->speed[dim] = limit;
                         }
                     }
+                }
 
+                // NOTE: Sync barrier, everyone needs to compute the derivative
+                //       before the position is updated.
+                for (size_t dim = 0; dim < cfg.nd; ++dim) {
                     // Update shark position with a forward movement.
                     // Assume Δt = 1.
                     shark_ptr->position[dim] = utils_clamp(
