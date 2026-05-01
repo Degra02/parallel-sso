@@ -38,4 +38,36 @@ static inline void utils_clamp_vec(double x[], size_t num_dim,
     }
 }
 
+/**
+ * @brief Print the configuration parameters at the start of the execution.
+ * @param cfg The configuration struct to print.
+ */
+static void print_info(const struct SSOConfig *cfg) {
+    printf("=== SSO Serial  ===\n");
+    printf("NP=%lu\t\tND=%lu\t\tk_max=%lu\tM=%lu\n",
+           cfg->np, cfg->nd, cfg->k_max, cfg->rotations);
+    printf("eta=%.3f\talpha=%.3f\tbeta=%.3f\n",
+           cfg->eta, cfg->alpha, cfg->beta);
+    printf("objective=%d\tseed=%lu\n\n", cfg->obj, cfg->seed);
+}
+
+/**
+ * @brief Print the final result at the end of the execution.
+ * @param best_min The best minimum value found.
+ * @param best_pos The position of the best minimum value found.
+ * @param nd The number of dimensions of the problem.
+ */
+static void print_result(double best_min, const double *best_pos, size_t nd) {
+    printf("\n=== Final Result ===\n");
+    printf("Best f(x) = %.10e\n", best_min);
+
+    size_t count_per_row = 8;
+    printf("Best x    = [");
+    for (uint32_t j = 0; j < nd; j++) {
+        if (j % count_per_row == 0) printf("\n");
+        printf(" %9.6f", best_pos[j]);
+    }
+    printf("\n]\n");
+}
+
 #endif /* UTILS_H_INCLUDED */

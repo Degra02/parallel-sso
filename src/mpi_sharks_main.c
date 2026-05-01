@@ -3,24 +3,16 @@
 #include <string.h>
 #include <stdlib.h>
 #include <time.h>
+
 #include "sso/parse_args.h"
 #include "sso/sso.h"
 #include "sso/ofuncs.h"
+#include "sso/utils.h"
 
-static void print_result(double best_min, const double *best_pos, size_t nd) {
-  printf("\n=== Final Result ===\n");
-  printf("Best f(x) = %.10e\n", best_min);
 
-  size_t count_per_row = 8;
-  printf("Best x    = [");
-  for (uint32_t j = 0; j < nd; j++) {
-    if (j % count_per_row == 0)
-      printf("\n");
-    printf(" %12.8f", best_pos[j]);
-  }
-  printf("\n]\n");
-}
-
+/**
+ * @brief MPI parallel sharks algorithm entrypoint.
+ */
 int main(int argc, char *argv[]) {
     int provided = 0;
     // MPI_THREAD_FUNNELED indicates that if the process is multithreaded, only the thread that called MPI_Init_thread will make MPI calls.
@@ -35,6 +27,10 @@ int main(int argc, char *argv[]) {
     if (parse_args(argc, argv, &cfg) != 0) {
         MPI_Finalize();
         return EXIT_FAILURE;
+    }
+
+    if (rank == 0) {
+        print_info(&cfg);
     }
 
     // Compute local population size (block distribution)
