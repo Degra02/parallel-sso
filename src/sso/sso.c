@@ -47,6 +47,10 @@ void sso_update_speed(struct Shark *shark, const struct SSOConfig *cfg,
         double mom_term  = cfg->alpha * R2 * v_prev;
         shark->speed[dim] = grad_term + mom_term;
 
+        // "Unlike most fishes, sharks do not have swim bladders to help them stay afloat.
+        // They must constantly swim in a slightly upward direction, 
+        // using strong tail fin for pro-pulsion, to keep from sinking.
+        // Hence, the ratio of high velocity/low velocity for shark is a limited value"
         if (fabs(v_prev) >= 1e-15) {
             // Limit the velocity up to β·v.
             double limit = cfg->beta * v_prev;
