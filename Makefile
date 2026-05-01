@@ -13,25 +13,28 @@ HEADERS := $(wildcard $(INC_DIR)/*.h)
 
 # Main source files for each executable
 SERIAL_MAIN := $(SRC_DIR)/serial_main.c
-MPI_MAIN := $(SRC_DIR)/mpi_main.c
+MPI_SHARKS_MAIN := $(SRC_DIR)/mpi_sharks_main.c
 
 # Object files
 COMMON_OBJS := $(patsubst $(SRC_DIR)/%.c,$(BUILD_DIR)/%.o,$(COMMON_SRCS))
 SERIAL_OBJS := $(BUILD_DIR)/serial_main.o $(COMMON_OBJS)
 SERIAL_V2_OBJS := $(BUILD_DIR)/serial_main_parallel_ready.o $(COMMON_OBJS)
-MPI_OBJS := $(BUILD_DIR)/mpi_main.o $(COMMON_OBJS)
+PAR_OPENMP_SHARKS_OBJS := $(BUILD_DIR)/openmp_sharks_main.o $(COMMON_OBJS)
+MPI_SHARKS_OBJS := $(BUILD_DIR)/mpi_sharks_main.o $(COMMON_OBJS)
 
 # Executables
 SERIAL_BIN := sso_serial
 SERIAL_V2_BIN := sso_serial_v2
-MPI_BIN := sso_mpi
+PAR_OPENMP_SHARKS_BIN := sso_openmp_sharks
+MPI_SHARKS_BIN := sso_mpi_sharks
 
 # Compiler flags
 CFLAGS := -O2 -Wall -Wextra -Wpedantic -I$(INC_DIR)
 LDFLAGS := -lm
+OPENMP_FLAGS := -fopenmp
 
 # Default target
-all: $(SERIAL_BIN) $(SERIAL_V2_BIN) $(MPI_BIN)
+all: $(SERIAL_BIN) $(SERIAL_V2_BIN) $(PAR_OPENMP_SHARKS_BIN) $(MPI_SHARKS_BIN)
 
 # Create build directory
 $(BUILD_DIR):
@@ -41,6 +44,10 @@ $(BUILD_DIR):
 $(BUILD_DIR)/%.o: $(SRC_DIR)/%.c $(HEADERS) | $(BUILD_DIR)
 	$(CC) $(CFLAGS) -c $< -o $@
 
+# OpenMP object file
+$(BUILD_DIR)/openmp_sharks_main.o: $(SRC_DIR)/openmp_sharks_main.c $(HEADERS) | $(BUILD_DIR)
+	$(CC) $(CFLAGS) $(OPENMP_FLAGS) -c $< -o $@
+
 # Serial executable
 $(SERIAL_BIN): $(SERIAL_OBJS)
 	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
@@ -49,13 +56,17 @@ $(SERIAL_BIN): $(SERIAL_OBJS)
 $(SERIAL_V2_BIN): $(SERIAL_V2_OBJS)
 	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
 
+# OpenMP parallel executable
+$(PAR_OPENMP_SHARKS_BIN): $(PAR_OPENMP_SHARKS_OBJS)
+	$(CC) $(CFLAGS) $(OPENMP_FLAGS) -o $@ $^ $(LDFLAGS) $(OPENMP_FLAGS)
+
 # MPI executable
-$(MPI_BIN): $(MPI_OBJS)
+$(MPI_SHARKS_BIN): $(MPI_SHARKS_OBJS)
 	$(MPICC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
 
 # Convenience targets
 clean:
-	rm -rf $(BUILD_DIR) $(SERIAL_BIN) $(MPI_BIN)
+	rm -rf $(BUILD_DIR) $(SERIAL_BIN) $(SERIAL_V2_BIN) $(PAR_OPENMP_SHARKS_BIN) $(MPI_SHARKS_BIN)
 
 distclean: clean
 
@@ -63,7 +74,8 @@ help:
 	@echo "Available targets:"
 	@echo "  all       - Build all executables (default)"
 	@echo "  $(SERIAL_BIN)  - Build serial version"
-	@echo "  $(MPI_BIN)    - Build MPI version"
+	@echo "  $(PAR_OPENMP_BIN)  - Build OpenMP sharks version"
+	@echo "  $(MPI_SHARKS_BIN)    - Build MPI sharks version"
 	@echo "  clean     - Remove build artifacts and executables"
 	@echo "  distclean - Same as clean"
 	@echo "  help      - Show this help message"

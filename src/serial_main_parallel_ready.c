@@ -88,7 +88,7 @@ int main(int argc, char *argv[]) {
                 double R2 = utils_rand(0, 1); // paper random value
 
                 for (size_t dim = 0; dim < cfg.nd; ++dim) {
-                    double v_prev    = shark_ptr->speed[dim];
+                    double v_prev = shark_ptr->speed[dim];
 
                     double derivative = eval_derivative(shark_ptr->position,
                                                 cfg.nd, cfg.obj, dim);

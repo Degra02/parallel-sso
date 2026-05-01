@@ -91,19 +91,13 @@ int main(int argc, char *argv[]) {
         MPI_Allreduce(&local_pair, &global_pair, 1, MPI_DOUBLE_INT, MPI_MINLOC, MPI_COMM_WORLD);
         global_best_min = global_pair.val;
 
-        // Keep the local state aligned with the reduced best so the next stage
-        // starts from the same global threshold on every rank.
-        local_best_min = global_best_min;
-
         if (rank == global_pair.rank) {
           memcpy(global_best_pos, local_best_pos, cfg.nd * sizeof(double));
         }
 
-        // Broadcast the best position from the winner rank
+        // Broadcast the best position from the winner rank (for reporting only)
         MPI_Bcast(global_best_pos, (int)cfg.nd, MPI_DOUBLE, global_pair.rank,
             MPI_COMM_WORLD);
-
-        memcpy(local_best_pos, global_best_pos, cfg.nd * sizeof(double));
 
         // Progress report only on rank 0
         if (rank == 0 && (k == 0 || (k + 1) % 100 == 0)) {
