@@ -15,6 +15,7 @@
 #include "sso/ofuncs.h"
 #include "sso/sso.h"
 #include "sso/utils.h"
+#include "common/utils.h"
 
 #include <math.h>
 #include <time.h>
@@ -57,84 +58,88 @@ int main(int argc, char *argv[]) {
         // Global best. Minimisation problem.
         double best_min = INFINITY;
 
-        for (size_t shark = 0; shark < cfg.np; ++shark) {
-            struct Shark *shark_ptr = &sharks[shark];
+        BENCHMARK_SERIAL(total_start, "Total time") {
 
-            // Perform k_max movement stages.
-            for (size_t k = 0; k < cfg.k_max; ++k) {
-                // Update shark speed.
-                double R1 = utils_rand(0, 1); // paper random value
-                double R2 = utils_rand(0, 1); // paper random value
+            for (size_t shark = 0; shark < cfg.np; ++shark) {
+                struct Shark *shark_ptr = &sharks[shark];
 
-                for (size_t dim = 0; dim < cfg.nd; ++dim) {
-                    double v_prev = shark_ptr->speed[dim];
+                // Perform k_max movement stages.
+                for (size_t k = 0; k < cfg.k_max; ++k) {
+                    // Update shark speed.
+                    double R1 = utils_rand(0, 1); // paper random value
+                    double R2 = utils_rand(0, 1); // paper random value
 
-                    double derivative = eval_derivative(shark_ptr->position,
-                                                cfg.nd, cfg.obj, dim);
-                    // gradient based speed: γ·R1·gradient
-                    double grad_term = cfg.eta * R1 * derivative;
-                    // momentum based speed: α·R2·v_{k-1}
-                    double mom_term  = cfg.alpha * R2 * v_prev;
-                    shark_ptr->speed[dim] = grad_term + mom_term;
+                    for (size_t dim = 0; dim < cfg.nd; ++dim) {
+                        double v_prev = shark_ptr->speed[dim];
 
-                    if (fabs(v_prev) >= 1e-15) {
-                        // Limit the velocity up to β·v.
-                        double limit = cfg.beta * v_prev;
-                        if (fabs(shark_ptr->speed[dim]) > fabs(limit)) {
-                            shark_ptr->speed[dim] = limit;
+                        double derivative = eval_derivative(shark_ptr->position,
+                                                    cfg.nd, cfg.obj, dim);
+                        // gradient based speed: γ·R1·gradient
+                        double grad_term = cfg.eta * R1 * derivative;
+                        // momentum based speed: α·R2·v_{k-1}
+                        double mom_term  = cfg.alpha * R2 * v_prev;
+                        shark_ptr->speed[dim] = grad_term + mom_term;
+
+                        if (fabs(v_prev) >= 1e-15) {
+                            // Limit the velocity up to β·v.
+                            double limit = cfg.beta * v_prev;
+                            if (fabs(shark_ptr->speed[dim]) > fabs(limit)) {
+                                shark_ptr->speed[dim] = limit;
+                            }
                         }
                     }
-                }
 
-                // NOTE: Sync barrier, everyone needs to compute the derivative
-                //       before the position is updated.
-                for (size_t dim = 0; dim < cfg.nd; ++dim) {
-                    // Update shark position with a forward movement.
-                    // Assume Δt = 1.
-                    shark_ptr->position[dim] = utils_clamp(
-                            shark_ptr->position[dim] + shark_ptr->speed[dim],
-                            &domain[dim]);
-                }
-
-                // Try to teleport the shark to a better alternative.
-                // Current best candidate, initialized with the current shark position.
-                double *candidate = scratch;
-                double best = OF(shark_ptr->position,
-                                                    cfg.nd, cfg.obj);
-                double best_r3 = 0.0;
-
-                for (uint32_t m = 0; m < cfg.rotations; ++m) {
-                    double r3 = utils_rand(-1, 1);
-                    // "Rotate" around the shark position.
+                    // NOTE: Sync barrier, everyone needs to compute the derivative
+                    //       before the position is updated.
                     for (size_t dim = 0; dim < cfg.nd; ++dim) {
-                        candidate[dim] = utils_clamp(
-                                    shark_ptr->position[dim] * (1 + r3),
-                                    &domain[dim]);
-                    }
-
-                    // Update position if better than the current one.
-                    double val = OF(candidate, cfg.nd, cfg.obj);
-                    if (val > best) {
-                        best = val;
-                        best_r3 = r3;
-                    }
-                }
-
-                if (best_r3 != 0.0) {
-                    for (size_t dim = 0; dim < cfg.nd; ++dim) {
+                        // Update shark position with a forward movement.
+                        // Assume Δt = 1.
                         shark_ptr->position[dim] = utils_clamp(
-                                    shark_ptr->position[dim] * (1 + best_r3),
-                                    &domain[dim]);
+                                shark_ptr->position[dim] + shark_ptr->speed[dim],
+                                &domain[dim]);
                     }
-                }
 
-                // If we have an all-time best value, update the current one.
-                double cur_min = -best;
-                if (cur_min < best_min) {
-                    best_min = cur_min;
-                    memcpy(best_pos, shark_ptr->position, cfg.nd * sizeof(double));
+                    // Try to teleport the shark to a better alternative.
+                    // Current best candidate, initialized with the current shark position.
+                    double *candidate = scratch;
+                    double best = OF(shark_ptr->position,
+                                                        cfg.nd, cfg.obj);
+                    double best_r3 = 0.0;
+
+                    for (uint32_t m = 0; m < cfg.rotations; ++m) {
+                        double r3 = utils_rand(-1, 1);
+                        // "Rotate" around the shark position.
+                        for (size_t dim = 0; dim < cfg.nd; ++dim) {
+                            candidate[dim] = utils_clamp(
+                                        shark_ptr->position[dim] * (1 + r3),
+                                        &domain[dim]);
+                        }
+
+                        // Update position if better than the current one.
+                        double val = OF(candidate, cfg.nd, cfg.obj);
+                        if (val > best) {
+                            best = val;
+                            best_r3 = r3;
+                        }
+                    }
+
+                    if (best_r3 != 0.0) {
+                        for (size_t dim = 0; dim < cfg.nd; ++dim) {
+                            shark_ptr->position[dim] = utils_clamp(
+                                        shark_ptr->position[dim] * (1 + best_r3),
+                                        &domain[dim]);
+                        }
+                    }
+
+                    // If we have an all-time best value, update the current one.
+                    double cur_min = -best;
+                    if (cur_min < best_min) {
+                        best_min = cur_min;
+                        memcpy(best_pos, shark_ptr->position, cfg.nd * sizeof(double));
+                    }
                 }
             }
+
         }
 
         // Print final result.
