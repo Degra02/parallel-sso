@@ -83,6 +83,8 @@ int main(int argc, char *argv[]) {
             }
         }
 
+        MPI_Barrier(MPI_COMM_WORLD);
+
         BENCHMARK(total_start, "Total time") {
 
             for (size_t shark = 0; shark < cfg.np; ++shark) {
@@ -206,6 +208,9 @@ int main(int argc, char *argv[]) {
 
                 }
             }
+
+            // Ensure everyone has finished.
+            MPI_Barrier(MPI_COMM_WORLD);
 
         }
 
