@@ -26,9 +26,7 @@ OPENMP_FLAGS := -fopenmp
 help:
 	@echo "Available targets:"
 	@echo "  all       - Build all executables (default)"
-	@echo "  $(SERIAL_BIN)  - Build serial version"
-	@echo "  $(PAR_OPENMP_BIN)  - Build OpenMP sharks version"
-	@echo "  $(MPI_SHARKS_BIN)    - Build MPI sharks version"
+	@echo "  sso_<type>_<section>  - Build parallel version: <type> = [mpi, openmp, hybrid], <section> = [sharks, dim]"
 	@echo "  clean     - Remove build artifacts and executables"
 	@echo "  distclean - Same as clean"
 	@echo "  help      - Show this help message"
@@ -46,7 +44,7 @@ sso_%: $(COMMON_OBJS) $(BUILD_DIR)/main_%.o
 
 # Convenience targets
 clean:
-	rm -rf $(BUILD_DIR) $(SERIAL_BIN) $(SERIAL_V2_BIN) $(PAR_OPENMP_SHARKS_BIN) $(MPI_SHARKS_BIN)
+	rm -rf $(BUILD_DIR) sso_*
 
 distclean: clean
 
