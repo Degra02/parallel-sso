@@ -37,7 +37,7 @@ $(BUILD_DIR):
 
 # Pattern rule for object files
 $(BUILD_DIR)/%.o: $(SRC_DIR)/%.c $(HEADERS) | $(BUILD_DIR)
-	$(CC) $(CFLAGS) -c $< -o $@
+	$(CC) $(CFLAGS) $(OPENMP_FLAGS) -c $< -o $@
 
 sso_%: $(COMMON_OBJS) $(BUILD_DIR)/main_%.o
 	$(CC) $(CFLAGS) $(OPENMP_FLAGS) -o $@ $^ $(LDFLAGS)

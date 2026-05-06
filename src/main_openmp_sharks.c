@@ -9,6 +9,11 @@
 #include <string.h>
 #include <omp.h>
 #include <stdio.h>
+#include "common/utils.h"
+
+#ifndef MAX_THREADS
+    #define MAX_THREADS 8
+#endif
 
 static inline double thread_rand_r(unsigned int *seedp, double min, double max) {
     return (double) rand_r(seedp) / ((double) RAND_MAX + 1.0) * (max - min) + min;
@@ -64,94 +69,96 @@ int main(int argc, char *argv[]) {
     }
 
     // Parallelize over sharks; each thread evolves its sharks through all stages.
-    #pragma omp parallel
-    {
-        int tid = omp_get_thread_num();
-        unsigned int seed = seed_base + (unsigned)tid;
-        double *local_scratch = &scratch_all[(size_t)tid * cfg.nd];
-        double *local_best_pos = &thread_best_pos_all[(size_t)tid * cfg.nd];
-        double local_best_min = INFINITY;
+    BENCHMARK_OPENMP(total_start, "Total OpenMP time") {
+        #pragma omp parallel num_threads(MAX_THREADS)
+        {
+            int tid = omp_get_thread_num();
+            unsigned int seed = seed_base + (unsigned)tid;
+            double *local_scratch = &scratch_all[(size_t)tid * cfg.nd];
+            double *local_best_pos = &thread_best_pos_all[(size_t)tid * cfg.nd];
+            double local_best_min = INFINITY;
 
-        #pragma omp for schedule(static)
-        for (size_t shark = 0; shark < cfg.np; ++shark) {
-            struct Shark *shark_ptr = &sharks[shark];
+            #pragma omp for schedule(static)
+            for (size_t shark = 0; shark < cfg.np; ++shark) {
+                struct Shark *shark_ptr = &sharks[shark];
 
-            // Perform k_max movement stages for this shark.
-            for (size_t k = 0; k < cfg.k_max; ++k) {
-                // Update shark speed using thread-local RNG
-                double R1 = thread_rand_r(&seed, 0.0, 1.0);
-                double R2 = thread_rand_r(&seed, 0.0, 1.0);
+                // Perform k_max movement stages for this shark.
+                for (size_t k = 0; k < cfg.k_max; ++k) {
+                    // Update shark speed using thread-local RNG
+                    double R1 = thread_rand_r(&seed, 0.0, 1.0);
+                    double R2 = thread_rand_r(&seed, 0.0, 1.0);
 
-                for (size_t dim = 0; dim < cfg.nd; ++dim) {
-                    double v_prev    = shark_ptr->speed[dim];
+                    for (size_t dim = 0; dim < cfg.nd; ++dim) {
+                        double v_prev    = shark_ptr->speed[dim];
 
-                    double derivative = eval_derivative(shark_ptr->position,
-                                                        cfg.nd, cfg.obj, dim);
-                    double grad_term = cfg.eta * R1 * derivative;
-                    double mom_term  = cfg.alpha * R2 * v_prev;
-                    shark_ptr->speed[dim] = grad_term + mom_term;
+                        double derivative = eval_derivative(shark_ptr->position,
+                                                            cfg.nd, cfg.obj, dim);
+                        double grad_term = cfg.eta * R1 * derivative;
+                        double mom_term  = cfg.alpha * R2 * v_prev;
+                        shark_ptr->speed[dim] = grad_term + mom_term;
 
-                    if (fabs(v_prev) >= 1e-15) {
-                        double limit = cfg.beta * v_prev;
-                        if (fabs(shark_ptr->speed[dim]) > fabs(limit)) {
-                            shark_ptr->speed[dim] = limit;
+                        if (fabs(v_prev) >= 1e-15) {
+                            double limit = cfg.beta * v_prev;
+                            if (fabs(shark_ptr->speed[dim]) > fabs(limit)) {
+                                shark_ptr->speed[dim] = limit;
+                            }
                         }
                     }
-                }
 
-                // Update position
-                for (size_t dim = 0; dim < cfg.nd; ++dim) {
-                    shark_ptr->position[dim] = utils_clamp(
-                            shark_ptr->position[dim] + shark_ptr->speed[dim],
-                            &domain[dim]);
-                }
-
-                // Rotational local search using thread-local scratch and RNG
-                double *candidate = local_scratch;
-                double best = OF(shark_ptr->position, cfg.nd, cfg.obj);
-                double best_r3 = 0.0;
-
-                for (uint32_t m = 0; m < cfg.rotations; ++m) {
-                    double r3 = thread_rand_r(&seed, -1.0, 1.0);
+                    // Update position
                     for (size_t dim = 0; dim < cfg.nd; ++dim) {
-                        candidate[dim] = utils_clamp(
-                                shark_ptr->position[dim] * (1 + r3),
+                        shark_ptr->position[dim] = utils_clamp(
+                                shark_ptr->position[dim] + shark_ptr->speed[dim],
                                 &domain[dim]);
                     }
 
-                    double val = OF(candidate, cfg.nd, cfg.obj);
-                    if (val > best) {
-                        best = val;
-                        best_r3 = r3;
-                    }
-                }
+                    // Rotational local search using thread-local scratch and RNG
+                    double *candidate = local_scratch;
+                    double best = OF(shark_ptr->position, cfg.nd, cfg.obj);
+                    double best_r3 = 0.0;
 
-                if (best_r3 != 0.0) {
-                    for (size_t dim = 0; dim < cfg.nd; ++dim) {
-                        shark_ptr->position[dim] = utils_clamp(
-                                    shark_ptr->position[dim] * (1 + best_r3),
+                    for (uint32_t m = 0; m < cfg.rotations; ++m) {
+                        double r3 = thread_rand_r(&seed, -1.0, 1.0);
+                        for (size_t dim = 0; dim < cfg.nd; ++dim) {
+                            candidate[dim] = utils_clamp(
+                                    shark_ptr->position[dim] * (1 + r3),
                                     &domain[dim]);
+                        }
+
+                        double val = OF(candidate, cfg.nd, cfg.obj);
+                        if (val > best) {
+                            best = val;
+                            best_r3 = r3;
+                        }
                     }
-                }
 
-                // If we have an all-time best value, update thread-local best
-                double cur_min = -best;
-                if (cur_min < local_best_min) {
-                    local_best_min = cur_min;
-                    memcpy(local_best_pos, shark_ptr->position, cfg.nd * sizeof(double));
-                }
-            } // end stages
-        } // end for sharks
+                    if (best_r3 != 0.0) {
+                        for (size_t dim = 0; dim < cfg.nd; ++dim) {
+                            shark_ptr->position[dim] = utils_clamp(
+                                        shark_ptr->position[dim] * (1 + best_r3),
+                                        &domain[dim]);
+                        }
+                    }
 
-        // Reduce per-thread best into shared global best (single sync point at end).
-        #pragma omp critical
-        {
-            if (local_best_min < best_min) {
-                best_min = local_best_min;
-                memcpy(best_pos, local_best_pos, cfg.nd * sizeof(double));
+                    // If we have an all-time best value, update thread-local best
+                    double cur_min = -best;
+                    if (cur_min < local_best_min) {
+                        local_best_min = cur_min;
+                        memcpy(local_best_pos, shark_ptr->position, cfg.nd * sizeof(double));
+                    }
+                } // end stages
+            } // end for sharks
+
+            // Reduce per-thread best into shared global best (single sync point at end).
+            #pragma omp critical
+            {
+                if (local_best_min < best_min) {
+                    best_min = local_best_min;
+                    memcpy(best_pos, local_best_pos, cfg.nd * sizeof(double));
+                }
             }
-        }
-    } /* end parallel region - implicit barrier */
+        } // end parallel region
+    } // end benchmark
 
     print_result(best_min, best_pos, cfg.nd);
 
