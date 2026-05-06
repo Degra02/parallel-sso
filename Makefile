@@ -1,3 +1,5 @@
+MAX_THREADS := 8
+
 # Compilers
 CC := mpicc
 
@@ -20,7 +22,9 @@ COMMON_OBJS := $(patsubst $(SRC_DIR)/%.c,$(BUILD_DIR)/%.o,$(COMMON_SRCS))
 # Compiler flags
 CFLAGS := -O2 -Wall -Wextra -Wpedantic -I$(INC_DIR) -march=native
 LDFLAGS := -lm
-OPENMP_FLAGS := -fopenmp
+OPENMP_FLAGS := -fopenmp -DMAX_THREADS=$(MAX_THREADS)
+
+
 
 # Default target
 help:
