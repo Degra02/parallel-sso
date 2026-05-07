@@ -46,7 +46,7 @@ int main(int argc, char *argv[]) {
                                 : (unsigned) cfg.seed);
 
     IF_MAIN_PROC {
-        print_info(&cfg);
+        print_info(&cfg, "MPI Dim");
     }
 
     // Domain bounds.

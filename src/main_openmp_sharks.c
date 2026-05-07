@@ -28,7 +28,7 @@ int main(int argc, char *argv[]) {
         return EXIT_FAILURE;
     }
 
-    print_info(&cfg);
+    print_info(&cfg, "OpenMP Sharks");
 
     // Domain bounds.
     struct Interval *domain = obj_alloc_domain_bounds(cfg.obj, cfg.nd);
