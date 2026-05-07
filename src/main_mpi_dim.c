@@ -144,26 +144,27 @@ int main(int argc, char *argv[]) {
     #error "Not implemented yet"
 #else
                     for (uint32_t m = 0; m < cfg.rotations; ++m) {
-#endif
                         double r3 = utils_rand(-1, 1);
                         // "Rotate" around the shark position.
-#if PAR_ALL_DIM
+    #if PAR_ALL_DIM
                         for (size_t dim = start_dim; dim < end_dim; ++dim) {
-#else
-                        for (size_t dim = 0; dim < cfg.nd; ++dim) {
-#endif
                             candidate[dim] = utils_clamp(
                                         shark_ptr->position[dim] * (1 + r3),
                                         &domain[dim]);
                         }
-#if PAR_ALL_DIM
-                        // TODO: gather or allgather.
                         MPI_Allgatherv(candidate + start_dim,
                             end_dim - start_dim, MPI_UINT64_T,
                             candidate, scatter_sizes,
                             scatter_starts, MPI_UINT64_T,
                             MPI_COMM_WORLD);
-#endif
+    #else
+                        for (size_t dim = 0; dim < cfg.nd; ++dim) {
+                            candidate[dim] = utils_clamp(
+                                        shark_ptr->position[dim] * (1 + r3),
+                                        &domain[dim]);
+                        }
+    #endif
+
                         // "Rotate" around the shark position.
                         for (size_t dim = 0; dim < cfg.nd; ++dim) {
                             candidate[dim] = utils_clamp(
@@ -180,24 +181,26 @@ int main(int argc, char *argv[]) {
                     }
 
                     if (best_r3 != 0.0) {
-#if PAR_ALL_DIM
+    #if PAR_ALL_DIM
                         for (size_t dim = start_dim; dim < end_dim; ++dim) {
-#else
-                        for (size_t dim = 0; dim < cfg.nd; ++dim) {
-#endif
                             shark_ptr->position[dim] = utils_clamp(
                                         shark_ptr->position[dim] * (1 + best_r3),
                                         &domain[dim]);
                         }
-#if PAR_ALL_DIM
-                        // TODO: gather or allgather.
                         MPI_Allgatherv(shark_ptr->position + start_dim,
                             end_dim - start_dim, MPI_UINT64_T,
                             shark_ptr->position, scatter_sizes,
                             scatter_starts, MPI_UINT64_T,
                             MPI_COMM_WORLD);
-#endif
+    #else
+                        for (size_t dim = 0; dim < cfg.nd; ++dim) {
+                            shark_ptr->position[dim] = utils_clamp(
+                                        shark_ptr->position[dim] * (1 + best_r3),
+                                        &domain[dim]);
+                        }
+    #endif
                     }
+#endif
 
                     // If we have an all-time best value, update the current one.
                     double cur_min = -best;
