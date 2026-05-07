@@ -61,13 +61,13 @@ static void print_result(double best_min, const double *best_pos, size_t nd) {
     printf("\n=== Final Result ===\n");
     printf("Best f(x) = %.10e\n", best_min);
 
-    size_t count_per_row = 8;
-    printf("Best x    = [");
-    for (uint32_t j = 0; j < nd; j++) {
-        if (j % count_per_row == 0) printf("\n");
-        printf(" %9.6f", best_pos[j]);
-    }
-    printf("\n]\n");
+    // size_t count_per_row = 8;
+    // printf("Best x    = [");
+    // for (uint32_t j = 0; j < nd; j++) {
+    //     if (j % count_per_row == 0) printf("\n");
+    //     printf(" %9.6f", best_pos[j]);
+    // }
+    // printf("\n]\n");
 }
 
 #endif /* UTILS_H_INCLUDED */
