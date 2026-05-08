@@ -16,6 +16,7 @@ static struct argp_option options[] = {
     {"nd",          'd', "int"  , 0, "The number of decision variables.",       0},
     {"k_max",       'k', "int"  , 0, "The number of stages.",                   0},
     {"rotations",   'm', "int"  , 0, "Rotational points to check at each step.",2},
+    {"threads",     't', "int"  , 0, "OpenMP threads (0 for runtime default).", 2},
     {"eta",         'n', "[0-1]", 0, "Gradient scaling factor.",                0},
     {"alpha",       'a', "[0-1]", 0, "Momentum (inertia) rate.",                0},
     {"beta",        'b', "[0-1]", 0, "Velocity limiter ratio.",                 0},
@@ -45,6 +46,7 @@ error_t parse_args(int argc, char *argv[], struct SSOConfig *config) {
         .beta       = 4.0,
         .obj        = OBJ_RASTRIGIN,
         .seed       = 1,
+        .threads    = 8,
     };
 
     return argp_parse(&argp, argc, argv, 0, 0, config);
@@ -91,6 +93,8 @@ static error_t parser(int key, char *arg, struct argp_state *state) {
             RET_PARSE_ULL(args, k_max, arg);
         case 'm':
             RET_PARSE_ULL(args, rotations, arg);
+        case 't':
+            RET_PARSE_ULL(args, threads, arg);
         case 'n':
             RET_PARSE_D(args, eta, arg);
         case 'a':

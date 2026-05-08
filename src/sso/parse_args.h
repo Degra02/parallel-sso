@@ -48,6 +48,10 @@ struct SSOConfig {
     ObjectiveFunction obj;
 
     uint64_t seed;
+
+    // OpenMP threads (0 lets OpenMP runtime choose)
+    // Default = 8
+    size_t threads;
 };
 
 error_t parse_args(int argc, char *argv[], struct SSOConfig *config);
