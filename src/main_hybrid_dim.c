@@ -94,7 +94,7 @@ int main(int argc, char *argv[]) {
             #pragma omp parallel num_threads(omp_threads)
             {
                 int tid = omp_get_thread_num();
-                unsigned int seed = (unsigned int)(cfg.seed == 0 ? (unsigned) time(NULL) : (unsigned) cfg.seed) + tid;
+                unsigned int seed = seed_base + (unsigned)tid;
                 double *thread_scratch = &scratch_all[(size_t)tid * cfg.nd];
 
                 for (size_t shark = 0; shark < cfg.np; ++shark) {
