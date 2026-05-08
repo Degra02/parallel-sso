@@ -35,7 +35,27 @@ int main(int argc, char *argv[]) {
   // Seed the PRNG to have reproducible runs. 0 for time-based randomness.
   srand(cfg.seed == 0 ? (unsigned)time(NULL) : (unsigned)cfg.seed);
 
-  print_info(&cfg);
+  print_info(&cfg,"Serial");
+
+    // Domain bounds.
+    struct Interval *domain = obj_alloc_domain_bounds(cfg.obj, cfg.nd);
+
+    // Alloc population sharks at random positions in the domain, with 0 speed.
+    struct Shark *sharks = sso_sharks_alloc(domain, &cfg);
+
+    // Scratch array to avoid allocations in loops.
+    double *scratch = calloc(cfg.nd, sizeof(double));
+
+    // The best position found up to date.
+    double *best_pos = calloc(cfg.nd, sizeof(double));
+
+    int ret;
+    if (domain == NULL || sharks == NULL || scratch == NULL || best_pos == NULL) {
+        perror("Malloc error");
+        ret = EXIT_FAILURE;
+    } else {
+        // Global best. Minimisation problem.
+        double best_min = INFINITY;
 
   // Domain bounds.
   struct Interval *domain = obj_alloc_domain_bounds(cfg.obj, cfg.nd);

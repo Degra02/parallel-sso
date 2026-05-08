@@ -45,7 +45,7 @@ int main(int argc, char *argv[]) {
     srand(cfg.seed == 0 ? (unsigned) time(NULL) : (unsigned) cfg.seed);
 
     IF_MAIN_PROC
-        print_info(&cfg);
+        print_info(&cfg, "MPI Sharks");
 
     // Compute local population size (block distribution)
     size_t base = cfg.np / (size_t)size;

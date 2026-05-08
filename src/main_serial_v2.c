@@ -36,7 +36,7 @@ int main(int argc, char *argv[]) {
     // Seed the PRNG to have reproducible runs. 0 for time-based randomness.
     srand(cfg.seed == 0 ? (unsigned) time(NULL) : (unsigned) cfg.seed);
 
-    print_info(&cfg);
+    print_info(&cfg, "Serial");
 
     // Domain bounds.
     struct Interval *domain = obj_alloc_domain_bounds(cfg.obj, cfg.nd);

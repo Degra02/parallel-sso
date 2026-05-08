@@ -31,7 +31,7 @@ int main(int argc, char *argv[]) {
     }
 
     if (rank == 0) {
-        print_info(&cfg);
+        print_info(&cfg, "MPI Sharks");
     }
 
     // Compute local population size (block distribution)
