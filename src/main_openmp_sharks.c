@@ -2,6 +2,8 @@
 #include "sso/ofuncs.h"
 #include "sso/sso.h"
 #include "sso/utils.h"
+#include "sso/utils.h"
+#include "common/utils.h"
 
 #include <math.h>
 #include <time.h>
@@ -9,15 +11,8 @@
 #include <string.h>
 #include <omp.h>
 #include <stdio.h>
-#include "common/utils.h"
 
-#ifndef MAX_THREADS
-    #define MAX_THREADS 8
-#endif
 
-static inline double thread_rand_r(unsigned int *seedp, double min, double max) {
-    return (double) rand_r(seedp) / ((double) RAND_MAX + 1.0) * (max - min) + min;
-}
 
 /**
  * @brief OpenMP parallel sharks algorithm entrypoint.
@@ -53,9 +48,9 @@ int main(int argc, char *argv[]) {
     }
 
     // Prepare per-thread scratch storage and per-thread best storage.
-    int max_threads = omp_get_max_threads();
-    double *scratch_all = calloc((size_t)max_threads * cfg.nd, sizeof(double));
-    double *thread_best_pos_all = calloc((size_t)max_threads * cfg.nd, sizeof(double));
+    int omp_threads = (cfg.threads == 0) ? omp_get_max_threads() : (int) cfg.threads;
+    double *scratch_all = calloc((size_t)omp_threads * cfg.nd, sizeof(double));
+    double *thread_best_pos_all = calloc((size_t)omp_threads * cfg.nd, sizeof(double));
 
     if (scratch_all == NULL || thread_best_pos_all == NULL) {
         perror("Malloc error");
@@ -69,7 +64,7 @@ int main(int argc, char *argv[]) {
 
     // Parallelize over sharks; each thread evolves its sharks through all stages.
     BENCHMARK_OPENMP(total_start, "Total OpenMP time") {
-        #pragma omp parallel num_threads(MAX_THREADS)
+        #pragma omp parallel num_threads(omp_threads)
         {
             int tid = omp_get_thread_num();
             unsigned int seed = seed_base + (unsigned)tid;

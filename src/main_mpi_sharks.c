@@ -20,7 +20,6 @@
 #include <math.h>
 #include <time.h>
 #include <stdlib.h>
-
 #include <mpi.h>
 
 
@@ -42,7 +41,7 @@ int main(int argc, char *argv[]) {
     if (0 != MPI_Comm_rank(MPI_COMM_WORLD, &rank)) return EXIT_FAILURE;
 
     // Seed the PRNG to have reproducible runs. 0 for time-based randomness.
-    srand(cfg.seed == 0 ? (unsigned) time(NULL) : (unsigned) cfg.seed);
+    srand((cfg.seed == 0 ? (unsigned) time(NULL) : (unsigned) cfg.seed) + (unsigned)rank);
 
     IF_MAIN_PROC
         print_info(&cfg, "MPI Sharks");
@@ -72,6 +71,7 @@ int main(int argc, char *argv[]) {
     } else {
         // Local best for this rank. Minimisation problem.
         double local_best_min = INFINITY;
+        double global_best_min = INFINITY;
 
         BENCHMARK(total_start, "Total time") {
 
@@ -155,27 +155,35 @@ int main(int argc, char *argv[]) {
                 }
             }
 
-        }
 
-        // Barrier to ensure all ranks have finished their local search before reduction.
-        MPI_Barrier(MPI_COMM_WORLD);
-        
-        double global_best_min = INFINITY;
-        MPI_Allreduce(&local_best_min, &global_best_min, 1, MPI_DOUBLE, MPI_MIN, MPI_COMM_WORLD);
+            // Barrier to ensure all ranks have finished their local search before reduction.
+            MPI_Barrier(MPI_COMM_WORLD);
 
-        int best_rank = -1;
-        if (local_best_min == global_best_min) {
-            best_rank = rank;
+            // Use an allreduce with MINLOC so every rank learns the global minimum and its rank.
+            struct { double value; int rank; } local_pair, global_pair;
+            local_pair.value = local_best_min;
+            local_pair.rank = rank;
+
+            MPI_Allreduce(&local_pair, &global_pair, 1, MPI_DOUBLE_INT, MPI_MINLOC, MPI_COMM_WORLD);
+
+            int best_rank = global_pair.rank;
+            if (rank == 0) {
+                global_best_min = global_pair.value;
+            }
+
+            // Only the best rank sends its best position to root, since everyone knows best_rank from Allreduce.
+            if (rank == best_rank) {
+                if (rank == 0) {
+                    memcpy(global_best_pos, local_best_pos, cfg.nd * sizeof(double));
+                } else {
+                    MPI_Send(local_best_pos, (int)cfg.nd, MPI_DOUBLE, 0, 0, MPI_COMM_WORLD);
+                }
+            }
+
+            if (rank == 0 && best_rank != 0) {
+                MPI_Recv(global_best_pos, (int)cfg.nd, MPI_DOUBLE, best_rank, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+            }
         }
-        MPI_Allreduce(MPI_IN_PLACE, &best_rank, 1, MPI_INT, MPI_MAX, MPI_COMM_WORLD);
-        
-        // The rank with the best solution copies to global_best_pos before broadcast
-        if (best_rank == rank) {
-            memcpy(global_best_pos, local_best_pos, cfg.nd * sizeof(double));
-        }
-        
-        // All ranks broadcast to get the global best position
-        MPI_Bcast(global_best_pos, (int)cfg.nd, MPI_DOUBLE, best_rank, MPI_COMM_WORLD);
 
         IF_MAIN_PROC
             print_result(global_best_min, global_best_pos, cfg.nd);

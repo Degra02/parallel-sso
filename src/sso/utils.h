@@ -12,6 +12,17 @@ static inline double utils_rand(double min, double max) {
 }
 
 /**
+ * @brief Generate a (pseudo)random value uniformly distributed in the given interval, using thread-local state.
+ * @param seedp Pointer to the thread-local random seed.
+ * @param min The lower bound of the interval.
+ * @param max The upper bound of the interval.
+ * @return A random value uniformly distributed in [min, max).
+ */
+static inline double thread_rand_r(unsigned int *seedp, double min, double max) {
+    return (double) rand_r(seedp) / ((double) RAND_MAX + 1.0) * (max - min) + min;
+}
+
+/**
  * @brief Clamp the given value x using interval as bound.
  * @param x The value to clamp.
  * @param interval The clamping interval.
