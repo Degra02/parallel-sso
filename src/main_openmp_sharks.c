@@ -2,13 +2,11 @@
 #include "sso/ofuncs.h"
 #include "sso/sso.h"
 #include "sso/utils.h"
-#include "sso/utils.h"
 #include "common/utils.h"
 
 #include <math.h>
 #include <time.h>
 #include <stdlib.h>
-#include <string.h>
 #include <omp.h>
 #include <stdio.h>
 
