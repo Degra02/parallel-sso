@@ -271,8 +271,7 @@ static const struct argp argp = {options, parser, "", NULL, 0, 0, 0};
             RET_PARSE_BOUNDED(d, args, field, val, min, max)
 
 static error_t parser(int key, char *arg, struct argp_state *state) {
-    struct SSOConfig *cfg = state->input;
-    struct Args *args = cfg->extension;
+    struct Args *args = state->input;
 
     switch (key) {
         case 't':

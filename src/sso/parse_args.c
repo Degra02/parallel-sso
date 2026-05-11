@@ -122,6 +122,11 @@ static error_t parser(int key, char *arg, struct argp_state *state) {
     struct SSOConfig *args = state->input;
 
     switch (key) {
+        case ARGP_KEY_INIT:
+            if (state->child_inputs != NULL && args != NULL) {
+                state->child_inputs[0] = args->extension;
+            }
+            return 0;
         case 'p':
             RET_PARSE_ULL(args, np, arg);
         case 'd':
