@@ -47,13 +47,17 @@ struct SSOConfig {
     // Default = OBJ_RASTRIGIN
     ObjectiveFunction obj;
 
-    uint64_t seed;
+    uint64_t seed; /**< The seed to use for pseudorandom generation. */
 
-    // OpenMP threads (0 lets OpenMP runtime choose)
-    // Default = 8
-    size_t threads;
+    void *extension; /**< Extension attributes. */
 };
 
 error_t parse_args(int argc, char *argv[], struct SSOConfig *config);
+
+/**
+ * @brief Parse args allowing for additional options.
+ */
+error_t parse_args_extend(int argc, char *argv[], struct SSOConfig *config,
+                          const struct argp *extension, void *ext_state);
 
 #endif /* PARSE_ARGS_H_INCLUDED */
