@@ -125,9 +125,9 @@ int main(int argc, char *argv[]) {
                     }
 
                     MPI_Allgatherv(shark_ptr->position + start_dim,
-                        end_dim - start_dim, MPI_UINT64_T,
+                        end_dim - start_dim, MPI_DOUBLE,
                         shark_ptr->position, scatter_sizes,
-                        scatter_starts, MPI_UINT64_T,
+                        scatter_starts, MPI_DOUBLE,
                         MPI_COMM_WORLD);
 
                     // NOTE: let everyone compute this to avoid resync.
