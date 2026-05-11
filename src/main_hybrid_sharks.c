@@ -240,7 +240,7 @@ static const struct argp_option options[] = {
     { 0 } // This is needed to "terminate" the array.
 };
 
-static const struct argp argp = {options, parser, ""};
+static const struct argp argp = {options, parser, "", NULL, 0, 0, 0};
 
 #define RET_PARSE_BOUNDED(size, args, field, val, min, max, ...) do {          \
         char *end;                                                             \

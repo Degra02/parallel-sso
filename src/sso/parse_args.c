@@ -67,7 +67,7 @@ error_t parse_args_extend(int argc, char *argv[], struct SSOConfig *config,
         .extension  = ext_state,
     };
 
-    struct argp_child children[] = {{extension}, {0}};
+    struct argp_child children[] = {{extension, 0, 0, 0}, {0}};
 
     argp.children = children;
 

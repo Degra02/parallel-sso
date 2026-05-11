@@ -10,14 +10,20 @@
 #include <omp.h>
 #include <stdio.h>
 
+struct Args {
+    size_t threads;
+};
 
+static const struct argp argp;
 
 /**
  * @brief OpenMP parallel sharks algorithm entrypoint.
  */
 int main(int argc, char *argv[]) {
     struct SSOConfig cfg;
-    if (parse_args(argc, argv, &cfg) != 0) {
+    struct Args args;
+
+    if (parse_args_extend(argc, argv, &cfg, &argp, &args) != 0) {
         return EXIT_FAILURE;
     }
 
@@ -46,7 +52,12 @@ int main(int argc, char *argv[]) {
     }
 
     // Prepare per-thread scratch storage and per-thread best storage.
-    int omp_threads = (cfg.threads == 0) ? omp_get_max_threads() : (int) cfg.threads;
+    int omp_threads = (args.threads == 0) ? omp_get_max_threads() : (int) args.threads;
+    if (omp_get_max_threads() < omp_threads) {
+        fprintf(stderr, "Too many threads %d/%d\n", omp_threads, omp_get_max_threads());
+        return EXIT_FAILURE;
+    }
+
     double *scratch_all = calloc((size_t)omp_threads * cfg.nd, sizeof(double));
     double *thread_best_pos_all = calloc((size_t)omp_threads * cfg.nd, sizeof(double));
 
@@ -161,4 +172,56 @@ int main(int argc, char *argv[]) {
     sso_sharks_free(sharks, cfg.np);
     free(domain);
     return EXIT_SUCCESS;
+}
+
+
+static error_t parser(int key, char *arg, struct argp_state *state);
+
+static const struct argp_option options[] = {
+    {"threads",     't', "int"  , 0, "The population size.",                    1},
+    { 0 } // This is needed to "terminate" the array.
+};
+
+static const struct argp argp = {options, parser, "", NULL, 0, 0, 0};
+
+#define RET_PARSE_BOUNDED(size, args, field, val, min, max, ...) do {          \
+        char *end;                                                             \
+        (args)->field = strto##size((val), &end __VA_OPT__(,) __VA_ARGS__);    \
+        if (*(val) == 0 || *end != 0) {                                        \
+            perror("Couldn't parse " #field);                                  \
+            return -1;                                                         \
+        }                                                                      \
+        if (*(val) < min || *(val) > max) {                                    \
+            return -1;                                                         \
+        }                                                                      \
+        return 0;                                                              \
+    } while(0)
+
+#define RET_PARSE(size, args, field, val, ...) do {                            \
+        char *end;                                                             \
+        (args)->field = strto##size((val), &end __VA_OPT__(,) __VA_ARGS__);    \
+        if (*(val) == 0 || *end != 0) {                                        \
+            perror("Couldn't parse " #field);                                  \
+            return -1;                                                         \
+        }                                                                      \
+        return 0;                                                              \
+    } while(0)
+
+#define RET_PARSE_ULL(args, field, val) RET_PARSE(ull, args, field, val, 0)
+#define RET_PARSE_D(args, field, val) RET_PARSE(d, args, field, val)
+#define RET_PARSE_D_BOUNDED(args, field, val, min, max)\
+            RET_PARSE_BOUNDED(d, args, field, val, min, max)
+
+static error_t parser(int key, char *arg, struct argp_state *state) {
+    struct SSOConfig *cfg = state->input;
+    struct Args *args = cfg->extension;
+
+    switch (key) {
+        case 't':
+            RET_PARSE_ULL(args, threads, arg);
+        case ARGP_KEY_END:
+            return 0;
+    }
+
+    return ARGP_ERR_UNKNOWN;
 }
