@@ -40,7 +40,7 @@ static const struct argp argp;
  */
 int main(int argc, char *argv[]) {
     struct SSOConfig cfg;
-    struct Args args;
+    struct Args args = {0};
     if (parse_args_extend(argc, argv, &cfg, &argp, &args) != 0) {
         return EXIT_FAILURE;
     }

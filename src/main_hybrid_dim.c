@@ -37,7 +37,7 @@ int main(int argc, char *argv[]) {
     // TODO: argp allows to combine different parsers. We should be able to
     // define serial/parallel specific arguments without rewriting everything.
     struct SSOConfig cfg;
-    struct Args args;
+    struct Args args = {0};
     if (parse_args_extend(argc, argv, &cfg, &argp, &args) != 0) {
         return EXIT_FAILURE;
     }
