@@ -57,7 +57,7 @@ int main(int argc, char *argv[]) {
                          : (unsigned) cfg.seed + rank;
 
     IF_MAIN_PROC {
-        print_info(&cfg);
+        print_info(&cfg, "Hybrid Sharks");
     }
 
     size_t max_threads = omp_get_max_threads();
