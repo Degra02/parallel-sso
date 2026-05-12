@@ -11,6 +11,7 @@
 *  3. Return the best individual found across all stages.
 */
 
+#include "common/utils.h"
 #include "sso/ofuncs.h"
 #include "sso/parse_args.h"
 #include "sso/sso.h"
@@ -77,14 +78,13 @@ int main(int argc, char *argv[]) {
             // Global best. Minimisation problem.
             double best_min = INFINITY;
 
-            // Perform k_max movement stages.
-            for (size_t k = 0; k < cfg.k_max; ++k) {
-                sso_perform_step(sharks, &cfg, domain, scratch, &best_min, best_pos);
+            BENCHMARK_SERIAL(total_start, "Total time") {
 
-                // Progress report every 100 stages.
-                if (k == 0 || (k + 1) % 100 == 0) {
-                    printf("Stage %5lu | best f(x) = %.8e\n", k + 1, best_min);
+                // Perform k_max movement stages.
+                for (size_t k = 0; k < cfg.k_max; ++k) {
+                    sso_perform_step(sharks, &cfg, domain, scratch, &best_min, best_pos);
                 }
+
             }
 
             // Print final result.
