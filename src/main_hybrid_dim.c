@@ -50,7 +50,7 @@ int main(int argc, char *argv[]) {
 
     // Seed the PRNG to have reproducible runs. 0 for time-based randomness.
     // TODO: sync time-based seed.
-    unsigned int seed_base = (unsigned int)(cfg.seed == 0 ? (unsigned) time(NULL) : (unsigned) cfg.seed) + (unsigned)rank;
+    unsigned int seed_base = (unsigned int)(cfg.seed == 0 ? (unsigned) time(NULL) : (unsigned) cfg.seed) + (unsigned)rank << 16;
     srand(seed_base);
 
     IF_MAIN_PROC {
@@ -117,7 +117,7 @@ int main(int argc, char *argv[]) {
                         double R2 = thread_rand_r(&seed, 0.0, 1.0);
 
                         // Speed update: parallelize over local dimensions.
-                        #pragma omp for schedule(static) nowait
+                        #pragma omp for schedule(static)
                         for (size_t dim = start_dim; dim < end_dim; ++dim) {
                             double v_prev = shark_ptr->speed[dim];
 
@@ -136,14 +136,13 @@ int main(int argc, char *argv[]) {
                         }
 
                         // Position update: parallelize over local dimensions.
-                        #pragma omp for schedule(static) nowait
+                        #pragma omp for schedule(static)
                         for (size_t dim = start_dim; dim < end_dim; ++dim) {
                             shark_ptr->position[dim] = utils_clamp(
                                     shark_ptr->position[dim] + shark_ptr->speed[dim],
                                     &domain[dim]);
                         }
 
-                        #pragma omp barrier
                         #pragma omp single
                         {
                             MPI_Allgatherv(shark_ptr->position + start_dim,

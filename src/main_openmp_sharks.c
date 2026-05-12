@@ -76,7 +76,7 @@ int main(int argc, char *argv[]) {
         #pragma omp parallel num_threads(omp_threads)
         {
             int tid = omp_get_thread_num();
-            unsigned int seed = seed_base + (unsigned)tid;
+            unsigned int seed = seed_base + (unsigned)tid << 16;
             double *local_scratch = &scratch_all[(size_t)tid * cfg.nd];
             double *local_best_pos = &thread_best_pos_all[(size_t)tid * cfg.nd];
             double local_best_min = INFINITY;

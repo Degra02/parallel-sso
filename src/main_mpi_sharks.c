@@ -41,7 +41,7 @@ int main(int argc, char *argv[]) {
     if (0 != MPI_Comm_rank(MPI_COMM_WORLD, &rank)) return EXIT_FAILURE;
 
     // Seed the PRNG to have reproducible runs. 0 for time-based randomness.
-    srand((cfg.seed == 0 ? (unsigned) time(NULL) : (unsigned) cfg.seed) + (unsigned)rank);
+    srand((cfg.seed == 0 ? (unsigned) time(NULL) : (unsigned) cfg.seed) + (unsigned)rank << 16);
 
     IF_MAIN_PROC
         print_info(&cfg, "MPI Sharks");
