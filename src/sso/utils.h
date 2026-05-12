@@ -43,7 +43,7 @@ static inline void utils_clamp_vec(double x[], size_t num_dim,
  * @param cfg The configuration struct to print.
  */
 static inline void print_info(const struct SSOConfig *cfg, char *variant_name) {
-    printf("=== SSO Serial  ===\n");
+    printf("=== SSO %s ===\n", variant_name);
     printf("NP=%lu\t\tND=%lu\t\tk_max=%lu\tM=%lu\n",
            cfg->np, cfg->nd, cfg->k_max, cfg->rotations);
     printf("eta=%.3f\talpha=%.3f\tbeta=%.3f\n",
