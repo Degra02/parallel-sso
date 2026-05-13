@@ -31,6 +31,9 @@ if [ -z "$JOB_NAME" ]; then echo "-j|--job is mandatory"; exit 1; fi
 
 for procs in $(seq 1 $N_PROC); do
   for thrds in $(seq 1 $N_THRD); do
+    while [[ $(qstat -u $USER | wc -l) -ge 30 ]]; do
+      sleep 15
+    done
     sed -e "s/\${N_THRD}/$thrds/g" -e "s/\${N_PROC}/$procs/g" "$JOB_NAME" | qsub
   done
 done

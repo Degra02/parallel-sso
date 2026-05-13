@@ -28,6 +28,7 @@ int main(int argc, char *argv[]) {
     }
 
     print_info(&cfg, "OpenMP Sharks");
+    printf("threads=%lu\n", args.threads);
 
     // Domain bounds.
     struct Interval *domain = obj_alloc_domain_bounds(cfg.obj, cfg.nd);

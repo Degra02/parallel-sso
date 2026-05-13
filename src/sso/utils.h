@@ -43,12 +43,12 @@ static inline void utils_clamp_vec(double x[], size_t num_dim,
  * @param cfg The configuration struct to print.
  */
 static inline void print_info(const struct SSOConfig *cfg, char *variant_name) {
-    printf("=== SSO %s ===\n", variant_name);
-    printf("NP=%lu\t\tND=%lu\t\tk_max=%lu\tM=%lu\n",
-           cfg->np, cfg->nd, cfg->k_max, cfg->rotations);
-    printf("eta=%.3f\talpha=%.3f\tbeta=%.3f\n",
-           cfg->eta, cfg->alpha, cfg->beta);
-    printf("objective=%d\tseed=%lu\n\n", cfg->obj, cfg->seed);
+    // printf("=== SSO %s ===\n", variant_name);
+    // printf("NP=%lu\t\tND=%lu\t\tk_max=%lu\tM=%lu\n",
+    //        cfg->np, cfg->nd, cfg->k_max, cfg->rotations);
+    // printf("eta=%.3f\talpha=%.3f\tbeta=%.3f\n",
+    //        cfg->eta, cfg->alpha, cfg->beta);
+    // printf("objective=%d\tseed=%lu\n\n", cfg->obj, cfg->seed);
 }
 
 /**
@@ -58,8 +58,9 @@ static inline void print_info(const struct SSOConfig *cfg, char *variant_name) {
  * @param nd The number of dimensions of the problem.
  */
 static inline void print_result(double best_min, const double *best_pos, size_t nd) {
-    printf("\n=== Final Result ===\n");
-    printf("Best f(x) = %.10e\n", best_min);
+    printf("\n");
+    // printf("\n=== Final Result ===\n");
+    // printf("Best f(x) = %.10e\n", best_min);
 
 #if SHOW_FINAL_POS
     size_t count_per_row = 8;
