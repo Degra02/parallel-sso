@@ -1,0 +1,8 @@
+#!/bin/env bash
+#PBS -l select=${N_PROC}:ncpus=${N_THRD}:mem=2gb
+#PBS -l walltime=0:45:00
+#PBS -q shortCPUQ
+
+module load OpenMPI/4.1.6-GCC-13.2.0
+
+./parallel-sso/sso_openmp_sharks -p 1000 -d 200 -k 1000 -m 50 -t ${N_THRD}

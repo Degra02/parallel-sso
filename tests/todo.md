@@ -9,6 +9,6 @@
   - [ ] Hybrid
 
 ## Tests to run
-- [ ] Find suitable configuration of parameters to use for the comparisons
+- [X] Find suitable configuration of parameters to use for the comparisons:  `-p 1000 -d 200 -k 1000 -m 50`
 
 
