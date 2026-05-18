@@ -49,7 +49,7 @@ def compute_metrics(results):
     return metrics
 
 
-def plot_metric(metrics, x_label, y_key, y_label, title, output_path):
+def plot_metric(metrics, x_label, y_key, y_label, title, output_path, y_limits=None):
     workers = [row["workers"] for row in metrics]
     values = [row[y_key] for row in metrics]
 
@@ -60,6 +60,9 @@ def plot_metric(metrics, x_label, y_key, y_label, title, output_path):
     plt.ylabel(y_label)
     plt.title(title)
     plt.grid(True, alpha=0.3)
+
+    if y_limits is not None:
+        plt.ylim(y_limits)
 
     plt.tight_layout()
     plt.savefig(output_path, dpi=300)
@@ -95,6 +98,7 @@ def generate_plots(input_file, worker_key, x_label, label_prefix, output_dir):
         "Efficiency",
         f"{label_prefix}: Efficiency",
         output_dir / f"{label_prefix.lower()}_efficiency.png",
+        y_limits=(0, 1),
     )
 
 
