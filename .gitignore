@@ -1,5 +1,6 @@
 sso_serial
 sso_mpi
 sso_*
+tests/results
 
 *.o
