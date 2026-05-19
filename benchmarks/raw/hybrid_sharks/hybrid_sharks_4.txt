@@ -1,0 +1,7 @@
+procs=4 threads=1 Total time: 48.100000 s
+procs=4 threads=2 Total time: 24.362664 s
+procs=4 threads=4 Total time: 12.578539 s
+procs=4 threads=8 Total time: 6.950269 s
+procs=4 threads=16 Total time: 7.114003 s
+procs=4 threads=32 Total time: 6.739919 s
+procs=4 threads=64 Total time: 6.604085 s

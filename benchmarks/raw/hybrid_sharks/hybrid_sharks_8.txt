@@ -1,0 +1,7 @@
+procs=8 threads=1 Total time: 24.121750 s
+procs=8 threads=2 Total time: 12.250254 s
+procs=8 threads=4 Total time: 6.999136 s
+procs=8 threads=8 Total time: 3.830462 s
+procs=8 threads=16 Total time: 3.641560 s
+procs=8 threads=32 Total time: 3.520770 s
+procs=8 threads=64 Total time: 2.889606 s
