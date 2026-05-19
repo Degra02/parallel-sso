@@ -28,7 +28,7 @@ int main(int argc, char *argv[]) {
     }
 
     print_info(&cfg, "OpenMP Sharks");
-    printf("threads=%lu\n", args.threads);
+    printf("threads=%lu ", args.threads);
 
     // Domain bounds.
     struct Interval *domain = obj_alloc_domain_bounds(cfg.obj, cfg.nd);
@@ -53,14 +53,14 @@ int main(int argc, char *argv[]) {
     }
 
     // Prepare per-thread scratch storage and per-thread best storage.
-    int omp_threads = (args.threads == 0) ? omp_get_max_threads() : (int) args.threads;
+    size_t omp_threads = (args.threads == 0) ? omp_get_max_threads() : (size_t) args.threads;
     if (omp_get_max_threads() < omp_threads) {
-        fprintf(stderr, "Too many threads %d/%d\n", omp_threads, omp_get_max_threads());
+        fprintf(stderr, "Too many threads %lu/%lu\n", omp_threads, (size_t)omp_get_max_threads());
         return EXIT_FAILURE;
     }
 
-    double *scratch_all = calloc((size_t)omp_threads * cfg.nd, sizeof(double));
-    double *thread_best_pos_all = calloc((size_t)omp_threads * cfg.nd, sizeof(double));
+    double *scratch_all = calloc(omp_threads * cfg.nd, sizeof(double));
+    double *thread_best_pos_all = calloc(omp_threads * cfg.nd, sizeof(double));
 
     if (scratch_all == NULL || thread_best_pos_all == NULL) {
         perror("Malloc error");

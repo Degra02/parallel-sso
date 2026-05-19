@@ -110,6 +110,7 @@ int main(int argc, char *argv[]) {
 
     IF_MAIN_PROC {
         print_info(&cfg, "MPI Hybrid");
+        printf("procs=%d ", size);
     }
 
     // Compute local population size.

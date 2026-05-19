@@ -55,6 +55,7 @@ int main(int argc, char *argv[]) {
 
     IF_MAIN_PROC {
         print_info(&cfg, "Hybrid Dimensions");
+        printf("procs=%d ", size);
     }
 
     // Domain bounds.
@@ -63,10 +64,14 @@ int main(int argc, char *argv[]) {
     // Alloc population sharks at random positions in the domain, with 0 speed.
     struct Shark *sharks = sso_sharks_alloc(domain, &cfg);
 
-    int omp_threads = (args.threads == 0) ? omp_get_max_threads() : (int) args.threads;
+    size_t omp_threads = (args.threads == 0) ? omp_get_max_threads() : (int) args.threads;
     if (omp_get_max_threads() < omp_threads) {
-        fprintf(stderr, "Too many threads %d/%d\n", omp_threads, omp_get_max_threads());
+        fprintf(stderr, "Too many threads %lu/%lu\n", omp_threads, (size_t)omp_get_max_threads());
         return EXIT_FAILURE;
+    }
+
+    IF_MAIN_PROC {
+        printf("threads=%lu ", omp_threads);
     }
 
     // Per-thread scratch storage for rotational search.

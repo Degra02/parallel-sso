@@ -30,8 +30,9 @@ int main(int argc, char *argv[]) {
         return EXIT_FAILURE;
     }
 
-    if (rank == 0) {
+    IF_MAIN_PROC {
         print_info(&cfg, "MPI Sharks");
+        printf("procs=%d ", size);
     }
 
     // Compute local population size (block distribution)

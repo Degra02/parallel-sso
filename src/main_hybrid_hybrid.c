@@ -60,6 +60,7 @@ int main(int argc, char *argv[]) {
 
     IF_MAIN_PROC {
         print_info(&cfg, "Hybrid Hybrid");
+        printf("procs=%d ", size);
     }
 
     size_t max_threads = omp_get_max_threads();
@@ -70,6 +71,10 @@ int main(int argc, char *argv[]) {
                 thread_num, max_threads);
         MPI_Finalize();
         return EXIT_FAILURE;
+    }
+
+    IF_MAIN_PROC {
+        printf("threads=%lu ", thread_num);
     }
 
     // Domain bounds

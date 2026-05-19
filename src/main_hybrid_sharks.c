@@ -58,11 +58,14 @@ int main(int argc, char *argv[]) {
 
     IF_MAIN_PROC {
         print_info(&cfg, "Hybrid Sharks");
+        printf("procs=%d ", size);
     }
 
     size_t max_threads = omp_get_max_threads();
     size_t thread_num = args.thread_num != 0 ? args.thread_num : max_threads;
-    printf("Thread num: %lu\n", thread_num);
+    IF_MAIN_PROC {
+        printf("threads=%lu ", thread_num);
+    }
 
     if (thread_num > max_threads) {
         fprintf(stderr, "Cannot use %lu threads, max is %lu",

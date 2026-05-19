@@ -47,6 +47,7 @@ int main(int argc, char *argv[]) {
 
     IF_MAIN_PROC {
         print_info(&cfg, "MPI Dim");
+        printf("procs=%d ", size);
     }
 
     // Domain bounds.

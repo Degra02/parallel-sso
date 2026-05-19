@@ -24,6 +24,11 @@
 #include <stdio.h>
 #include <omp.h>
 
+struct Args {
+    size_t threads;
+};
+
+static const struct argp argp;
 
 /**
  * @brief OpenMP dimensions algorithm entrypoint.
@@ -32,7 +37,9 @@ int main(int argc, char *argv[]) {
     // TODO: argp allows to combine different parsers. We should be able to
     // define serial/parallel specific arguments without rewriting everything.
     struct SSOConfig cfg;
-    if (parse_args(argc, argv, &cfg) != 0) {
+    struct Args args = {0};
+
+    if (parse_args_extend(argc, argv, &cfg, &argp, &args) != 0) {
         return EXIT_FAILURE;
     }
 
@@ -40,6 +47,7 @@ int main(int argc, char *argv[]) {
     srand(cfg.seed == 0 ? (unsigned) time(NULL) : (unsigned) cfg.seed);
 
     print_info(&cfg, "OpenMP Dim");
+    printf("threads=%lu ", args.threads);
 
     // Domain bounds.
     struct Interval *domain = obj_alloc_domain_bounds(cfg.obj, cfg.nd);
@@ -52,6 +60,12 @@ int main(int argc, char *argv[]) {
 
     // The best position found up to date.
     double *best_pos = calloc(cfg.nd, sizeof(double));
+
+    size_t omp_threads = (args.threads == 0) ? omp_get_max_threads() : (size_t) args.threads;
+    if (omp_get_max_threads() < omp_threads) {
+        fprintf(stderr, "Too many threads %lu/%lu\n", omp_threads, (size_t)omp_get_max_threads());
+        return EXIT_FAILURE;
+    }
 
     int ret;
     if (domain == NULL || sharks == NULL || scratch == NULL || best_pos == NULL) {
@@ -69,7 +83,7 @@ int main(int argc, char *argv[]) {
 
         BENCHMARK_OPENMP(total_start, "Total OpenMP time") {
 
-            #pragma omp parallel default(none) \
+            #pragma omp parallel default(none) num_threads(omp_threads) \
                 shared(cfg, domain, sharks, scratch, best_pos, best_min, \
                        R1, R2, r3, best, best_r3)
             {
@@ -183,4 +197,55 @@ int main(int argc, char *argv[]) {
     sso_sharks_free(sharks, cfg.np);
     free(domain);
     return ret;
+}
+
+
+static error_t parser(int key, char *arg, struct argp_state *state);
+
+static const struct argp_option options[] = {
+    {"threads",     't', "int"  , 0, "The population size.",                    1},
+    { 0 } // This is needed to "terminate" the array.
+};
+
+static const struct argp argp = {options, parser, "", NULL, 0, 0, 0};
+
+#define RET_PARSE_BOUNDED(size, args, field, val, min, max, ...) do {          \
+        char *end;                                                             \
+        (args)->field = strto##size((val), &end __VA_OPT__(,) __VA_ARGS__);    \
+        if (*(val) == 0 || *end != 0) {                                        \
+            perror("Couldn't parse " #field);                                  \
+            return -1;                                                         \
+        }                                                                      \
+        if (*(val) < min || *(val) > max) {                                    \
+            return -1;                                                         \
+        }                                                                      \
+        return 0;                                                              \
+    } while(0)
+
+#define RET_PARSE(size, args, field, val, ...) do {                            \
+        char *end;                                                             \
+        (args)->field = strto##size((val), &end __VA_OPT__(,) __VA_ARGS__);    \
+        if (*(val) == 0 || *end != 0) {                                        \
+            perror("Couldn't parse " #field);                                  \
+            return -1;                                                         \
+        }                                                                      \
+        return 0;                                                              \
+    } while(0)
+
+#define RET_PARSE_ULL(args, field, val) RET_PARSE(ull, args, field, val, 0)
+#define RET_PARSE_D(args, field, val) RET_PARSE(d, args, field, val)
+#define RET_PARSE_D_BOUNDED(args, field, val, min, max)\
+            RET_PARSE_BOUNDED(d, args, field, val, min, max)
+
+static error_t parser(int key, char *arg, struct argp_state *state) {
+    struct Args *args = state->input;
+
+    switch (key) {
+        case 't':
+            RET_PARSE_ULL(args, threads, arg);
+        case ARGP_KEY_END:
+            return 0;
+    }
+
+    return ARGP_ERR_UNKNOWN;
 }

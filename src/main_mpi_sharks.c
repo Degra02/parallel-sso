@@ -43,8 +43,10 @@ int main(int argc, char *argv[]) {
     // Seed the PRNG to have reproducible runs. 0 for time-based randomness.
     srand((cfg.seed == 0 ? (unsigned) time(NULL) : (unsigned) cfg.seed) + (unsigned)rank << 16);
 
-    IF_MAIN_PROC
+    IF_MAIN_PROC {
         print_info(&cfg, "MPI Sharks");
+        printf("procs=%d ", size);
+    }
 
     // Compute local population size (block distribution)
     size_t base = cfg.np / (size_t)size;
