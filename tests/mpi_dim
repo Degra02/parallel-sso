@@ -1,6 +1,6 @@
 #!/bin/env bash
 #PBS -l select=1:ncpus=${N_PROC}:mpiprocs=${N_PROC}:mem=2gb
-#PBS -l walltime=0:5:00
+#PBS -l walltime=0:15:00
 #PBS -q shortCPUQ
 
 # output & error files
