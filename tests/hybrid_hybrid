@@ -1,0 +1,11 @@
+#!/bin/env bash
+#PBS -l select=1:ncpus=64:mpiprocs=64:mem=2gb
+#PBS -l walltime=0:15:00
+#PBS -q shortCPUQ
+
+# output & error files
+#PBS -N ${JOB_NAME}_${N_PROC}_${N_THRD}
+
+module load OpenMPI/4.1.6-GCC-13.2.0
+
+mpirun -n ${N_PROC} ./parallel-sso/sso_hybrid_hybrid -p 1000 -d 200 -k 1000 -m 50 -t ${N_THRD}
