@@ -26,7 +26,7 @@ Program to perform shark smelling optimization.
   -d, --nd=int               The number of decision variables.
   -k, --k_max=int            The number of stages.
   -p, --np=int               The population size.
-  -t, --threads=int          The population size. (only for OpenMP/hybrid)
+  -t, --threads=int          The number of threads (only for OpenMP/hybrid).
   -a, --alpha=[0-1]          Momentum (inertia) rate.
   -b, --beta=[0-1]           Velocity limiter ratio.
   -m, --rotations=int        Rotational points to check at each step.

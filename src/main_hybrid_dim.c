@@ -228,7 +228,7 @@ int main(int argc, char *argv[]) {
 static error_t parser(int key, char *arg, struct argp_state *state);
 
 static const struct argp_option options[] = {
-    {"threads",     't', "int"  , 0, "The population size.",                    1},
+    {"threads",     't', "int"  , 0, "The number of threads",                    1},
     { 0 } // This is needed to "terminate" the array.
 };
 
