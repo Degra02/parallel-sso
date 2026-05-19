@@ -17,6 +17,11 @@ while [[ $# -gt 0 ]]; do
     shift # past argument
     shift # past value
     ;;
+  -e | --exec)
+    EXEC="$2"
+    shift # past argument
+    shift # past value
+    ;;
   *)
     echo "Unexpected option '$1'"
     exit 1
@@ -37,11 +42,11 @@ done
 #   exit 1
 # fi
 
-for procs in $(seq 1 $N_PROC); do
-  for thrds in $(seq 1 $N_THRD); do
+for ((procs=1; procs<=N_PROC; procs*=2)); do
+  for ((thrds=1; thrds<=N_THRD; thrds*=2)); do
     while [[ $(qstat -u $USER | wc -l) -ge 30 ]]; do
       sleep 10
     done
-    sed -e "s/\${N_THRD}/$thrds/g" -e "s/\${N_PROC}/$procs/g" -e "s/\${JOB_NAME}/$JOB_NAME/g" "$JOB_NAME" | qsub
+    sed -e "s/\${N_THRD}/$thrds/g" -e "s/\${N_PROC}/$procs/g" -e "s/\${JOB_NAME}/$JOB_NAME/g" "$EXEC" | qsub
   done
 done
