@@ -1,0 +1,23 @@
+procs=1 Total time: 157.030521 s
+procs=2 Total time: 156.539397 s
+procs=4 Total time: 157.405509 s
+procs=8 Total time: 158.897398 s
+procs=16 Total time: 185.508309 s
+procs=32 Total time: 238.918181 s
+procs=64 Total time: 393.303675 s
+
+procs=1 Total time: 130.320855 s
+procs=2 Total time: 205.543889 s
+procs=4 Total time: 206.245792 s
+procs=8 Total time: 133.245220 s
+procs=16 Total time: 163.331570 s
+procs=32 Total time: 213.868309 s
+procs=64 Total time: 397.410150 s
+
+procs=1 Total time: 204.174321 s
+procs=2 Total time: 197.018004 s
+procs=4 Total time: 131.152969 s
+procs=8 Total time: 132.668350 s
+procs=16 Total time: 165.126024 s
+procs=32 Total time: 348.874421 s
+procs=64 Total time: 405.925341 s
