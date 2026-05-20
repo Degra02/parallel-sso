@@ -108,10 +108,6 @@ mapfile -t THRD_VALUES < <(expand_pow2_range "$N_THRD")
 
 for procs in "${PROC_VALUES[@]}"; do
   for thrds in "${THRD_VALUES[@]}"; do
-    total_cpus=$procs
-    if ((thrds > total_cpus)); then
-      total_cpus=$thrds
-    fi
     while [[ $(qstat -u $USER | wc -l) -ge 30 ]]; do
       sleep 10
     done
@@ -119,8 +115,8 @@ for procs in "${PROC_VALUES[@]}"; do
       -e "s/\${N_THRD}/$thrds/g" \
       -e "s/\${N_PROC}/$procs/g" \
       -e "s/\${JOB_NAME}/$JOB_NAME/g" \
-      -e "s/\${N_CPUS}/$total_cpus/g" \
+      -e "s/\${N_CPUS}/$N_CPUS/g" \
       -e "s/\${PLACE}/$PLACE/g" \
-      "$EXEC" | qsub
+      "$EXEC" | cat
   done
 done
