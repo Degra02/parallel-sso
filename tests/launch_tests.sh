@@ -22,6 +22,16 @@ while [[ $# -gt 0 ]]; do
     shift # past argument
     shift # past value
     ;;
+  -c | --cpus)
+    N_CPUS="$2"
+    shift # past argument
+    shift # past value
+    ;;
+  -x | --placement)
+    PLACE="$2"
+    shift # past argument
+    shift # past value
+    ;;
   *)
     echo "Unexpected option '$1'"
     exit 1
@@ -73,6 +83,26 @@ expand_pow2_range() {
 #   exit 1
 # fi
 
+if [ -z "$EXEC" ]; then
+  echo "-e|--exec is mandatory"
+  exit 1
+fi
+if [ -z "$JOB_NAME" ]; then
+  JOB_NAME="parallel-sso"
+fi
+if [ -z "$PLACE" ]; then
+  PLACE="excl"
+fi
+if [ -z "$N_PROC" ]; then
+  N_PROC=1
+fi
+if [ -z "$N_THRD" ]; then
+  N_THRD=1
+fi
+if [ -z "$N_CPUS" ]; then
+  N_CPUS=1
+fi
+
 mapfile -t PROC_VALUES < <(expand_pow2_range "$N_PROC")
 mapfile -t THRD_VALUES < <(expand_pow2_range "$N_THRD")
 
@@ -90,6 +120,7 @@ for procs in "${PROC_VALUES[@]}"; do
       -e "s/\${N_PROC}/$procs/g" \
       -e "s/\${JOB_NAME}/$JOB_NAME/g" \
       -e "s/\${N_CPU}/$total_cpus/g" \
+      -e "s/\${PLACE}/$PLACE/g" \
       "$EXEC" | cat
   done
 done
