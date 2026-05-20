@@ -183,7 +183,28 @@ Discuss pros and cons of each strategy / implementation. The report can include 
 - Hybrid parallelization is recommended though it is not mandatory
 */
 
+All code and scripts related to the project are available in a public repository @parallel-sso-repo.
+
+== MPI Implementations
+
+== OpenMP Implementations
+
+== Hybrid MPI+OpenMP Implementations
+
+
 = Performance and Scalability Analysis
 /*
 The student must analyze the performance of the developed implementation in terms of execution time, speedup, and efficiency.
 - Both strong scalability and weak scalability should be evaluated where possible.
+*/
+
+The implementation contains three different objective functions (in `sso/ofuncs.c`), taken from the original SSO paper, that are used for testing the algorithm's performance and scalability. In our experiments, we used the Rastrigin function @rastrigin (set as default in the code), as the differences between the various objective functions were negligible in terms of execution time and speedup.
+
+#figure(image("images/Rastrigin.png", width: 100%), caption: [Rastrigin function, a common benchmark for optimization algorithms.])
+
+
+= Conclusion
+
+This paper presented a comprehensive study of parallel implementations of the Shark Smell Optimization algorithm using MPI, OpenMP, and hybrid MPI+OpenMP programming models. By exploring different levels of parallelism (shark-level, dimension-level, rotation-level and hybrid), we analyzed the trade-offs between computational efficiency, communication overhead, and synchronization costs.
+
+Performance evaluation on standard benchmark functions demonstrated significant reductions in execution time and improved scalability with increasing problem size and processor count. Future work could explore more advanced parallelization strategies, such as dynamic load balancing or GPU acceleration, to further enhance the performance of SSO on large-scale optimization problems.
