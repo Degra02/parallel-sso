@@ -3,6 +3,7 @@
 #import "@preview/codly-languages:0.1.1": *
 
 #show: codly-init.with()
+#let code-size = 7pt
 
 #show: ieee.with(
   title: [Parallel Shark Smell Optimization],
@@ -51,7 +52,7 @@ This paper investigates multiple parallel implementations of the Shark Smell Opt
 
 - `shark-level` parallelism, where candidate solutions are distributed across population elements;
 - `dimension-level` parallelism, where computations across search-space dimensions are parallelized;
-- `hybrid` parallelism, combining both shark-level and dimension-level decomposition.
+- `hybrid` parallelism, combining both the other strategies.
 
 By combining these algorithmic decomposition strategies with MPI, OpenMP, and hybrid MPI+OpenMP execution models, the work evaluates multiple parallel variants of SSO and analyzes their scalability, synchronization behavior, communication overhead, and computational efficiency on multicore HPC architectures.
 
@@ -59,14 +60,14 @@ By combining these algorithmic decomposition strategies with MPI, OpenMP, and hy
 
 The SSO @sso algorithm is a population-based metaheuristic inspired by sharks' ability to locate prey by sensing and following odor gradients.
 
-#figure(image("images/shark.png", width: 70%), caption: [Schematic illustration of a shark movement to odor source.])
+#figure(image("images/shark.png", width: 70%), caption: [Schematic illustration of a shark's movement to odor source.])
 
 The method maintains a population of candidate solutions (`shark`s) that move through the search space combining global exploration and focused local exploitation.
 
 #pagebreak()
 
 #codly(header: box(text(weight: "bold", [Shark data structure])), languages: codly-languages)
-#show raw: set text(font: "JetBrains Mono", size: 8pt)
+#show raw: set text(font: "JetBrains Mono", size: code-size)
 ```C
 struct Shark {
   double *position; // Current position of the shark.
@@ -80,7 +81,7 @@ Each shark iteratively updates its position and speed based on a combination of 
 The main stages of the SSO algorithm are described in the following pseudo-code, which highlights the key computational steps:
 
 #codly(header: box(text(weight: "bold", [Serial Algorithm])), languages: codly-languages)
-#show raw: set text(font: "JetBrains Mono", size: 8pt)
+#show raw: set text(font: "JetBrains Mono", size: code-size)
 ```C
 // Shark loop
 for shark_index in 0 .. cfg.np-1:
@@ -133,8 +134,25 @@ for shark_index in 0 .. cfg.np-1:
 
 
 = Parallel Design
+/*
+Preliminary study about the opportunities for parallelism inherent in the problem sequential algorithm.
+- State of the art analysis should be performed on parallel design strategies
+- Alternative designs, related to different parallelization strategies, should be considered and discussed at this stage, appropriately motivating why some operations lend themselves to effective parallelization and others do not as well as why some data structures may or may not minimize the burden of communication and synchronization.
+- Reference to prior work as well as link with related work must be clearly stated in the report.
+- Hybrid parallelization strategies, with data dependencies must be discussed too
+*/
 
 The SSO algorithm contains various sources of parallelism. The evaluation and update of individual sharks can generally be executed independently, making shark-level decomposition highly suitable for distributed-memory execution. Conversely, dimension-level decomposition is a more complicated form of parallelism that can be applied within the evaluation of a single shark's position and speed updates, which may be more efficient in shared-memory environments. Hybrid approaches can combine these strategies to leverage both inter-node and intra-node parallelism. \
+
+In the following graph, we illustrate the slowdown of the serial algorithm as various parameters (number of sharks, dimensions, iterations) increase.
+
+#figure(image("images/serial_raw_slowdown.png", width: 100%), caption: [Execution time of the serial SSO algorithm as a function of the number of sharks, dimensions, stages and rotations.])
+
+The graph above underlines how the SSO algorithm would benefit from parallelization, especially as the problem size increases. The computational cost grows significantly with the number of sharks, dimensions, and iterations, making it crucial to explore parallel design strategies to achieve practical execution times for larger problem instances.
+
+Although the outer "stage" loop over the stage index `k`, in the graph indicated by the red line, might at first seem parallelizable, it is inherently sequential: each iteration at stage `k` consumes and modifies data produced at stage `k-1` (for example updated shark positions, velocities and fitness values). These true data dependencies prevent concurrent execution of different `k` iterations without violating correctness. Any approach to overlap would require complex checkpointing or synchronization that typically outweighs potential gains. Therefore, parallelism is applied at the shark and dimension levels rather than across stage iterations.
+
+\
 
 This work therefore investigates the interaction between:
 
@@ -144,9 +162,12 @@ This work therefore investigates the interaction between:
   - hybrid MPI+OpenMP;
 
 - and the algorithmic decomposition strategy:
-  - shark-level parallelization,
-  - dimension-level parallelization,
-  - hybrid shark-dimension parallelization.
+  - `shark-level` parallelization,
+  - `dimension-level` parallelization,
+  - `rotation-level` parallelization,
+  - `hybrid` parallelization.
+
+\
 
 The comparative evaluation of these configurations enables a detailed analysis of scalability, workload distribution, communication overhead, synchronization costs, and overall parallel efficiency.
 
@@ -154,17 +175,6 @@ The comparative evaluation of these configurations enables a detailed analysis o
 
 == Dimension-level Parallelism
 
-== Parallelism over Stages
-
-Although the outer "stage" loop over the stage index `k` might at first seem parallelizable, it is inherently sequential: each iteration at stage `k` consumes and modifies data produced at stage `k-1` (for example updated shark positions, velocities and fitness values). These true data dependencies prevent concurrent execution of different `k` iterations without violating correctness. Any approach to overlap would require complex checkpointing or synchronization that typically outweighs potential gains. Therefore, parallelism is applied at the shark and dimension levels rather than across stage iterations.
-
-/*
-Preliminary study about the opportunities for parallelism inherent in the problem sequential algorithm.
-- State of the art analysis should be performed on parallel design strategies
-- Alternative designs, related to different parallelization strategies, should be considered and discussed at this stage, appropriately motivating why some operations lend themselves to effective parallelization and others do not as well as why some data structures may or may not minimize the burden of communication and synchronization.
-- Reference to prior work as well as link with related work must be clearly stated in the report.
-- Hybrid parallelization strategies, with data dependencies must be discussed too
-*/
 
 = Implementation
 /*
