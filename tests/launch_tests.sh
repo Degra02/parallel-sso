@@ -47,8 +47,8 @@ expand_pow2_range() {
     start="${BASH_REMATCH[1]}"
     end="${BASH_REMATCH[2]}"
   elif [[ "$spec" =~ ^[0-9]+$ ]]; then
-    start=1
-    end="$spec"
+    echo "$spec"
+    return 0
   else
     echo "Invalid range '$spec'. Use N or start-end (for example 2-8)."
     exit 1
@@ -91,7 +91,8 @@ if [ -z "$JOB_NAME" ]; then
   JOB_NAME="parallel-sso"
 fi
 if [ -z "$PLACE" ]; then
-  PLACE="excl"
+  # Either "pack" or "scatter".
+  PLACE="pack"
 fi
 if [ -z "$N_PROC" ]; then
   N_PROC=1
