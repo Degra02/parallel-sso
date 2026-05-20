@@ -1,0 +1,17 @@
+Starting pop=100
+Total time: 2.799863 s
+Total time: 6.281987 s
+Total time: 8.447507 s
+Total time: 11.139918 s
+Total time: 12.884925 s
+Total time: 15.445662 s
+Total time: 18.940410 s
+Total time: 21.641570 s
+Total time: 24.289083 s
+Total time: 27.076773 s
+Total time: 30.112118 s
+Total time: 32.422927 s
+Total time: 35.073531 s
+Total time: 38.188705 s
+Total time: 40.516149 s
+Total time: 43.922466 s

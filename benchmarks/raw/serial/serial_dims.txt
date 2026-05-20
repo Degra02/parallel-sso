@@ -1,0 +1,17 @@
+Starting dims=30
+Total time: 2.581131 s
+Total time: 4.998362 s
+Total time: 7.832842 s
+Total time: 10.475514 s
+Total time: 12.994045 s
+Total time: 15.654332 s
+Total time: 18.413539 s
+Total time: 20.892162 s
+Total time: 23.450957 s
+Total time: 26.545328 s
+Total time: 28.832866 s
+Total time: 31.829411 s
+Total time: 34.030996 s
+Total time: 37.228955 s
+Total time: 39.244740 s
+Total time: 41.875351 s

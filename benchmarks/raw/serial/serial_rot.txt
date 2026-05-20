@@ -1,0 +1,17 @@
+Starting rot=50
+Total time: 1.939221 s
+Total time: 4.911921 s
+Total time: 5.440038 s
+Total time: 5.304149 s
+Total time: 6.593574 s
+Total time: 5.329901 s
+Total time: 8.034694 s
+Total time: 10.677453 s
+Total time: 11.048311 s
+Total time: 12.257627 s
+Total time: 14.185181 s
+Total time: 15.489775 s
+Total time: 18.586150 s
+Total time: 17.367545 s
+Total time: 19.322985 s
+Total time: 20.617649 s

@@ -1,0 +1,17 @@
+Starting stages=1000
+Total time: 2.583181 s
+Total time: 5.404817 s
+Total time: 8.020797 s
+Total time: 10.993708 s
+Total time: 12.654495 s
+Total time: 15.195380 s
+Total time: 18.360937 s
+Total time: 21.201747 s
+Total time: 23.322882 s
+Total time: 25.995653 s
+Total time: 31.084227 s
+Total time: 31.335941 s
+Total time: 33.220317 s
+Total time: 36.022202 s
+Total time: 38.458171 s
+Total time: 40.357098 s
