@@ -66,19 +66,25 @@ The method maintains a population of candidate solutions (`shark`s) that move th
 
 #pagebreak()
 
-#codly(header: box(text(weight: "bold", [Shark data structure])), languages: codly-languages)
-#show raw: set text(font: "JetBrains Mono", size: code-size)
-```C
-struct Shark {
-  double *position; // Current position of the shark.
-  double *speed;    // Current speed of the shark.
-  double pos_score; // The OF(position) value.
-};
-```
+#figure(
+  [
+    #codly(languages: codly-languages)
+    #show raw: set text(font: "JetBrains Mono", size: code-size)
+    ```C
+    struct Shark {
+      double *position; // Current position of the shark.
+      double *speed;    // Current speed of the shark.
+      double pos_score; // The OF(position) value.
+    };
+    ```
+  ],
+  caption: [Shark data structure]
+)
 
 Each shark iteratively updates its position and speed based on a combination of inertia (momentum from previous movement) and attraction toward promising regions of the search space (global best or local neighborhood best). Additionally, a local rotational search is performed around improved sharks to refine their positions.
 
 The main stages of the SSO algorithm are described in the following pseudo-code, which highlights the key computational steps:
+
 
 #codly(header: box(text(weight: "bold", [Serial Algorithm])), languages: codly-languages)
 #show raw: set text(font: "JetBrains Mono", size: code-size)
@@ -175,6 +181,7 @@ The comparative evaluation of these configurations enables a detailed analysis o
 
 == Dimension-level Parallelism
 
+== Rotation-level Parallelism
 
 = Implementation
 /*
@@ -198,10 +205,86 @@ The student must analyze the performance of the developed implementation in term
 - Both strong scalability and weak scalability should be evaluated where possible.
 */
 
+In this section, we present a performance analysis of the various parallel implementations of the SSO algorithm. We evaluate execution time, speedup and efficiency across the different parallelization strategies and programming models. The experiments are conducted on a multicore HPC cluster, and we analyze both strong and weak scalability.
+The section is organized as follows:
+- Experimental setup and benchmark functions
+- Analysis with varying number of processes
+- Analysis with varying number of threads
+- Analysis with both processes and threads (hybrid)
+- Analysis with different execution modes in the PBS system.
+
+== Experimental Setup and Benchmark Functions
+
+To standardize our performance evaluation, we decided to stick with a fixed set of parameters for the SSO algorithm across all implementations. The set has been chosen to be sufficiently large to allow for meaningful performance measurements while keeping execution times manageable. The parameters are as follows:
+- Number of sharks (`np`): 1000
+- Number of dimensions (`nd`): 200
+- Number of stages (`k_max`): 1000
+- Number of rotations (`rotations`): 50
+\
+
+The rest of the parameters (such as `eta`, `alpha`, `beta`) are set to their default values as defined in the code, that have been taken from the original SSO paper.
+
+In order to launch several tests with different parameters, we developed a set of scripts that automate the execution of the various implementations on the HPC cluster. The scripts allow us to easily vary the number of chunks to select on the cluster, processes and threads used in the MPI and OpenMP methods.
+Regarding the execution modes in the PBS system, we decided to stick with the `excl` mode, which ensures that the allocated resources are not shared with other jobs. This choice allows us to minimize interference and obtain more consistent performance measurements.
+
+#figure([
+  #codly(languages: codly-languages)
+  #show raw: set text(font: "JetBrains Mono", size: code-size)
+  ```bash
+  ...
+  for procs in "${PROC_VALUES[@]}"; do
+    for thrds in "${THRD_VALUES[@]}"; do
+      while [[ $(qstat -u $USER | wc -l) -ge 30 ]]; do
+        sleep 10
+      done
+      sed \
+        -e "s/\${N_THRD}/$thrds/g" \
+        -e "s/\${N_PROC}/$procs/g" \
+        -e "s/\${JOB_NAME}/$JOB_NAME/g" \
+        -e "s/\${N_CPUS}/$N_CPUS/g" \
+        -e "s/\${PLACE}/$PLACE/g" \
+        "$EXEC" | qsub
+    done
+  done
+```],
+caption: [A portion of the script used to launch the tests on the HPC cluster. The script iterates over different values of processes and threads (user-defined), checks for the number of running jobs, and submits new jobs using `qsub` with the appropriate parameters.]
+)<launch_script>
+
+#figure(
+  [
+    #codly(languages: codly-languages)
+    #show raw: set text(font: "JetBrains Mono", size: code-size)
+    ```bash
+    #!/bin/env bash
+    #PBS -l select=${N_CPUS}:ncpus=${N_PROC}:mpiprocs=${N_PROC}:mem=2gb
+    #PBS -l place=${PLACE}:excl
+    #PBS -l walltime=0:5:00
+    #PBS -q shortCPUQ
+
+    # output & error files
+    #PBS -N ${JOB_NAME}_${N_PROC}_${N_THRD}
+
+    module load OpenMPI/4.1.6-GCC-13.2.0
+
+    mpirun -n $(( ${N_CPUS} * ${N_PROC} )) ./parallel-sso/sso_hybrid_sharks -p 1000 -d 200 -k 1000 -m 50 -t ${N_THRD}
+    ```
+  ],
+  caption: [An example PBS script, edited by @launch_script. The script specifies resource requirements, loads necessary modules, and runs the executable with the defined parameters for sharks, dimensions, stages, rotations, and threads.]
+) <pbs_script>
+
+
 The implementation contains three different objective functions (in `sso/ofuncs.c`), taken from the original SSO paper, that are used for testing the algorithm's performance and scalability. In our experiments, we used the Rastrigin function @rastrigin (set as default in the code), as the differences between the various objective functions were negligible in terms of execution time and speedup.
 
 #figure(image("images/Rastrigin.png", width: 100%), caption: [Rastrigin function, a common benchmark for optimization algorithms.])
 
+
+== Varying number of processes
+
+== Varying number of threads
+
+== Hybrid parallelism
+
+== Playing with PBS
 
 = Conclusion
 
