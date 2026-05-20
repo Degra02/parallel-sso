@@ -9,4 +9,4 @@
 
 module load OpenMPI/4.1.6-GCC-13.2.0
 
-mpirun -n ${N_PROC} ./parallel-sso/sso_mpi_hybrid -p 1000 -d 200 -k 1000 -m 50
+mpirun -n $(( ${N_CPUS} * ${N_PROC} )) ./parallel-sso/sso_mpi_hybrid -p 1000 -d 200 -k 1000 -m 50
