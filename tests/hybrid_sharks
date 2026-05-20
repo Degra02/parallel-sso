@@ -1,5 +1,5 @@
 #!/bin/env bash
-#PBS -l select=${N_CPUS}:ncpus=${N_CPU}:mpiprocs=${N_PROC}:mem=2gb
+#PBS -l select=${N_CPUS}:ncpus=${N_PROC}:mpiprocs=${N_PROC}:mem=2gb
 #PBS -l place=${PLACE}:excl
 #PBS -l walltime=0:5:00
 #PBS -q shortCPUQ
@@ -10,3 +10,4 @@
 module load OpenMPI/4.1.6-GCC-13.2.0
 
 mpirun -n ${N_PROC} ./parallel-sso/sso_hybrid_sharks -p 1000 -d 200 -k 1000 -m 50 -t ${N_THRD}
+

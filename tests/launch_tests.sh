@@ -119,8 +119,8 @@ for procs in "${PROC_VALUES[@]}"; do
       -e "s/\${N_THRD}/$thrds/g" \
       -e "s/\${N_PROC}/$procs/g" \
       -e "s/\${JOB_NAME}/$JOB_NAME/g" \
-      -e "s/\${N_CPU}/$total_cpus/g" \
+      -e "s/\${N_CPUS}/$total_cpus/g" \
       -e "s/\${PLACE}/$PLACE/g" \
-      "$EXEC" | cat
+      "$EXEC" | qsub
   done
 done
