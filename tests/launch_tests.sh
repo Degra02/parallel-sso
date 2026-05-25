@@ -4,33 +4,33 @@ while [[ $# -gt 0 ]]; do
   case $1 in
   -p | --procs)
     N_PROC="$2"
-    shift # past argument
-    shift # past value
+    shift
+    shift
     ;;
   -t | --thrds)
     N_THRD="$2"
-    shift # past argument
-    shift # past value
+    shift
+    shift
     ;;
   -j | --job)
     JOB_NAME="$2"
-    shift # past argument
-    shift # past value
+    shift
+    shift
     ;;
   -e | --exec)
     EXEC="$2"
-    shift # past argument
-    shift # past value
+    shift
+    shift
     ;;
   -c | --cpus)
     N_CPUS="$2"
-    shift # past argument
-    shift # past value
+    shift
+    shift
     ;;
   -x | --placement)
     PLACE="$2"
-    shift # past argument
-    shift # past value
+    shift
+    shift
     ;;
   *)
     echo "Unexpected option '$1'"
@@ -50,12 +50,7 @@ expand_pow2_range() {
     echo "$spec"
     return 0
   else
-    echo "Invalid range '$spec'. Use N or start-end (for example 2-8)."
-    exit 1
-  fi
-
-  if ((start < 1 || end < start)); then
-    echo "Invalid range '$spec'. Ensure 1 <= start <= end."
+    echo "Invalid range '$spec'. Use N or start-end."
     exit 1
   fi
 
@@ -70,19 +65,6 @@ expand_pow2_range() {
   done
 }
 
-# if [ -z "$N_PROC" ]; then
-#   echo "-p|--procs is mandatory"
-#   exit 1
-# fi
-# if [ -z "$N_THRD" ]; then
-#   echo "-t|--thrds is mandatory"
-#   exit 1
-# fi
-# if [ -z "$JOB_NAME" ]; then
-#   echo "-j|--job is mandatory"
-#   exit 1
-# fi
-
 if [ -z "$EXEC" ]; then
   echo "-e|--exec is mandatory"
   exit 1
@@ -91,8 +73,7 @@ if [ -z "$JOB_NAME" ]; then
   JOB_NAME="parallel-sso"
 fi
 if [ -z "$PLACE" ]; then
-  # Either "pack" or "scatter".
-  PLACE="pack"
+  PLACE="scatter"
 fi
 if [ -z "$N_PROC" ]; then
   N_PROC=1
@@ -109,15 +90,37 @@ mapfile -t THRD_VALUES < <(expand_pow2_range "$N_THRD")
 
 for procs in "${PROC_VALUES[@]}"; do
   for thrds in "${THRD_VALUES[@]}"; do
-    while [[ $(qstat -u $USER | wc -l) -ge 30 ]]; do
-      sleep 10
-    done
-    sed \
-      -e "s/\${N_THRD}/$thrds/g" \
-      -e "s/\${N_PROC}/$procs/g" \
-      -e "s/\${JOB_NAME}/$JOB_NAME/g" \
-      -e "s/\${N_CPUS}/$N_CPUS/g" \
-      -e "s/\${PLACE}/$PLACE/g" \
-      "$EXEC" | cat
+
+    if [[ $(basename "$EXEC") == "hybrid_sharks" ]]; then
+      if ((procs == 64 && thrds == 64)); then
+        continue
+      fi
+
+      mpi_per_chunk=$((96 / thrds))
+      if ((mpi_per_chunk > procs)); then
+        mpi_per_chunk=$procs
+      fi
+
+      chunks=$(((procs + mpi_per_chunk - 1) / mpi_per_chunk))
+
+      sed \
+        -e "s/\${N_THRD}/$thrds/g" \
+        -e "s/\${N_PROC}/$procs/g" \
+        -e "s/\${JOB_NAME}/$JOB_NAME/g" \
+        -e "s/\${N_CHUNKS}/$chunks/g" \
+        -e "s/\${N_CPUS_PER_CHUNK}/96/g" \
+        -e "s/\${N_MPI_PER_CHUNK}/$mpi_per_chunk/g" \
+        -e "s/\${PLACE}/$PLACE/g" \
+        "$EXEC" | cat
+    else
+      sed \
+        -e "s/\${N_THRD}/$thrds/g" \
+        -e "s/\${N_PROC}/$procs/g" \
+        -e "s/\${JOB_NAME}/$JOB_NAME/g" \
+        -e "s/\${N_CPUS}/$N_CPUS/g" \
+        -e "s/\${PLACE}/$PLACE/g" \
+        "$EXEC" | cat
+    fi
+
   done
 done

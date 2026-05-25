@@ -1,5 +1,5 @@
 #!/bin/env bash
-#PBS -l select=${N_CPUS}:ncpus=${N_PROC}:mpiprocs=${N_PROC}:mem=2gb
+#PBS -l select=${N_CHUNKS}:ncpus=${N_CPUS_PER_CHUNK}:mpiprocs=${N_MPI_PER_CHUNK}:mem=2gb
 #PBS -l place=${PLACE}:excl
 #PBS -l walltime=0:5:00
 #PBS -q shortCPUQ
@@ -9,5 +9,13 @@
 
 module load OpenMPI/4.1.6-GCC-13.2.0
 
-mpirun -n $(( ${N_CPUS} * ${N_PROC} )) ./parallel-sso/sso_hybrid_sharks -p 1000 -d 200 -k 1000 -m 50 -t ${N_THRD}
+export OMP_NUM_THREADS=${N_THRD}
+export OMP_PLACES=cores
+export OMP_PROC_BIND=close
 
+sort -u "$PBS_NODEFILE" | awk '{print $1" slots=${N_CPUS_PER_CHUNK}"}' > hosts_${N_PROC}_${N_THRD}
+
+mpirun --hostfile hosts_${N_PROC}_${N_THRD} -np ${N_PROC} \
+  --map-by ppr:${N_MPI_PER_CHUNK}:node:PE=${N_THRD} \
+  --bind-to core \
+  ./parallel-sso/sso_hybrid_sharks -p 1000 -d 200 -k 1000 -m 50 -t ${N_THRD}

@@ -1,7 +1,7 @@
-procs=16 threads=1 Total time: 12.507492 s
-procs=16 threads=2 Total time: 4.572392 s
-procs=16 threads=4 Total time: 5.093433 s
-procs=16 threads=8 Total time: 4.214656 s
-procs=16 threads=16 Total time: 3.900218 s
-procs=16 threads=32 Total time: 2.894612 s
-procs=16 threads=64 Total time: 5.025999 s
+procs=16 threads=1 Total time: 13.534093 s
+procs=16 threads=2 Total time: 7.451430 s
+procs=16 threads=4 Total time: 3.759270 s
+procs=16 threads=8 Total time: 2.063619 s
+procs=16 threads=16 Total time: 0.974632 s
+procs=16 threads=32 Total time: 0.532987 s
+procs=16 threads=64 Total time: 0.346236 s
