@@ -42,8 +42,9 @@ int main(int argc, char *argv[]) {
 
     // Seed the PRNG to have reproducible runs. 0 for time-based randomness.
     // TODO: sync time-based seed.
-    srand(cfg.seed == 0   ? (unsigned) time(NULL)
-                                : (unsigned) cfg.seed);
+    unsigned seed = cfg.seed == 0   ? (unsigned) time(NULL)
+                                    : (unsigned) cfg.seed;
+    srand(seed);
 
     IF_MAIN_PROC {
         print_info(&cfg, "MPI Dim");
@@ -93,9 +94,13 @@ int main(int argc, char *argv[]) {
 
                 // Perform k_max movement stages.
                 for (size_t k = 0; k < cfg.k_max; ++k) {
-                    // Update shark speed.
+                    // Reseed to resync rand state.
+                    srand(seed + shark * cfg.k_max + k);
                     double R1 = utils_rand(0, 1); // paper random value
                     double R2 = utils_rand(0, 1); // paper random value
+
+                    MPI_Bcast(shark_ptr->position, cfg.nd,
+                            MPI_DOUBLE, MAIN_RANK, MPI_COMM_WORLD);
 
                     for (size_t dim = start_dim; dim < end_dim; ++dim) {
                         double v_prev = shark_ptr->speed[dim];
@@ -125,52 +130,52 @@ int main(int argc, char *argv[]) {
                                 &domain[dim]);
                     }
 
-                    MPI_Allgatherv(shark_ptr->position + start_dim,
+                    MPI_Gatherv(shark_ptr->position + start_dim,
                         end_dim - start_dim, MPI_DOUBLE,
                         shark_ptr->position, scatter_sizes,
                         scatter_starts, MPI_DOUBLE,
-                        MPI_COMM_WORLD);
+                        MAIN_RANK, MPI_COMM_WORLD);
 
-                    // NOTE: let everyone compute this to avoid resync.
-                    // TODO: evaluate the impact of approximations.
+                    IF_MAIN_PROC {
 
-                    // Try to teleport the shark to a better alternative.
-                    // Current best candidate, initialized with the current shark position.
-                    double *candidate = scratch;
-                    double best = OF(shark_ptr->position,
-                                     cfg.nd, cfg.obj);
-                    double best_r3 = 0.0;
+                        // Try to teleport the shark to a better alternative.
+                        // Current best candidate, initialized with the current shark position.
+                        double *candidate = scratch;
+                        double best = OF(shark_ptr->position,
+                                         cfg.nd, cfg.obj);
+                        double best_r3 = 0.0;
 
-                    for (uint32_t m = 0; m < cfg.rotations; ++m) {
-                        double r3 = utils_rand(-1, 1);
-                        // "Rotate" around the shark position.
-                        for (size_t dim = 0; dim < cfg.nd; ++dim) {
-                            candidate[dim] = utils_clamp(
-                                        shark_ptr->position[dim] * (1 + r3),
-                                        &domain[dim]);
+                        for (uint32_t m = 0; m < cfg.rotations; ++m) {
+                            double r3 = utils_rand(-1, 1);
+                            // "Rotate" around the shark position.
+                            for (size_t dim = 0; dim < cfg.nd; ++dim) {
+                                candidate[dim] = utils_clamp(
+                                            shark_ptr->position[dim] * (1 + r3),
+                                            &domain[dim]);
+                            }
+
+                            // Update position if better than the current one.
+                            double val = OF(candidate, cfg.nd, cfg.obj);
+                            if (val > best) {
+                                best = val;
+                                best_r3 = r3;
+                            }
                         }
 
-                        // Update position if better than the current one.
-                        double val = OF(candidate, cfg.nd, cfg.obj);
-                        if (val > best) {
-                            best = val;
-                            best_r3 = r3;
+                        if (best_r3 != 0.0) {
+                            for (size_t dim = 0; dim < cfg.nd; ++dim) {
+                                shark_ptr->position[dim] = utils_clamp(
+                                            shark_ptr->position[dim] * (1 + best_r3),
+                                            &domain[dim]);
+                            }
                         }
-                    }
 
-                    if (best_r3 != 0.0) {
-                        for (size_t dim = 0; dim < cfg.nd; ++dim) {
-                            shark_ptr->position[dim] = utils_clamp(
-                                        shark_ptr->position[dim] * (1 + best_r3),
-                                        &domain[dim]);
+                        // If we have an all-time best value, update the current one.
+                        double cur_min = -best;
+                        if (cur_min < best_min) {
+                            best_min = cur_min;
+                            memcpy(best_pos, shark_ptr->position, cfg.nd * sizeof(double));
                         }
-                    }
-
-                    // If we have an all-time best value, update the current one.
-                    double cur_min = -best;
-                    if (cur_min < best_min) {
-                        best_min = cur_min;
-                        memcpy(best_pos, shark_ptr->position, cfg.nd * sizeof(double));
                     }
 
                 }
