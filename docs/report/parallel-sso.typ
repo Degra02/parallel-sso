@@ -16,17 +16,17 @@
     (
       name: "Pietro Cipriani",
       location: [000000],
-      email: "pietro.cipriani@studenti.unitn.it"
+      email: "pietro.cipriani@studenti.unitn.it",
     ),
     (
       name: "Filippo De Grandi",
       location: [257824],
-      email: "filippo.degrandi@studenti.unitn.it"
+      email: "filippo.degrandi@studenti.unitn.it",
     ),
     (
       name: "Giacomo Vettore",
       location: [000000],
-      email: "giacomo.vettore@studenti.unitn.it"
+      email: "giacomo.vettore@studenti.unitn.it",
     ),
   ),
   index-terms: ("parallelization", "hpc", "mpi", "openmp", "sharks", "smelling"),
@@ -78,7 +78,7 @@ The method maintains a population of candidate solutions (`shark`s) that move th
     };
     ```
   ],
-  caption: [Shark data structure]
+  caption: [Shark data structure],
 )
 
 Each shark iteratively updates its position and speed based on a combination of inertia (momentum from previous movement) and attraction toward promising regions of the search space (global best or local neighborhood best). Additionally, a local rotational search is performed around improved sharks to refine their positions.
@@ -152,7 +152,10 @@ The SSO algorithm contains various sources of parallelism. The evaluation and up
 
 In the following graph, we illustrate the slowdown of the serial algorithm as various parameters (number of sharks, dimensions, iterations) increase.
 
-#figure(image("images/serial_raw_slowdown.png", width: 100%), caption: [Execution time of the serial SSO algorithm as a function of the number of sharks, dimensions, stages and rotations.])
+#figure(
+  image("images/serial_raw_slowdown.png", width: 100%),
+  caption: [Execution time of the serial SSO algorithm as a function of the number of sharks, dimensions, stages and rotations.],
+)
 
 The graph above underlines how the SSO algorithm would benefit from parallelization, especially as the problem size increases. The computational cost grows significantly with the number of sharks, dimensions, and iterations, making it crucial to explore parallel design strategies to achieve practical execution times for larger problem instances.
 
@@ -190,13 +193,50 @@ Discuss pros and cons of each strategy / implementation. The report can include 
 - Hybrid parallelization is recommended though it is not mandatory
 */
 
-All code and scripts related to the project are available in a public repository @parallel-sso-repo.
+All code and scripts related to the project are available in the repository (see `README`). The implementation reuses a single algorithmic core, found in `sso/sso.c` and exposes multiple execution strategies through self-contained entrypoints in the `src` directory, e.g. `src/main_mpi_sharks.c`, `src/main_openmp_dim.c`, `src/main_hybrid_dim.c`, etc. Each entrypoint implements a specific parallelization strategy and programming model, while sharing the same underlying SSO logic.
+
+The names of the entrypoints follow the convention `main_<model>_<strategy>.c`, where `<model>` is one of `mpi`, `openmp`, or `hybrid`, and `<strategy>` indicates the parallelization approach, i.e. `sharks`, `dim`, `rot`.
+
+The following subsections describe the main parallelization strategies we implemented, the key code locations, and the design trade-offs.
 
 == MPI Implementations
 
+We implemented three MPI decompositions that map naturally to the SSO algorithm:
+
+- *Shark-level (population) decomposition*: each MPI rank owns a subset of the population and executes the full per-shark stages locally. At the end of the run ranks perform a reduction to determine the globally best solution. See `src/main_mpi_sharks.c`.
+ This approach is straightforward and minimizes communication during the main loop, as each rank can independently update its sharks. This results in low communication overhead and good scalability when the population size is large enough to amortize the cost of setup and evaluation. However, it may suffer from load imbalance if the sharks are not uniformly distributed in terms of computational cost (e.g. some sharks may converge faster than others).
+
+- *Dimension-level decomposition*: the decision-variable vector is partitioned across MPI ranks; each rank computes updates for its set of dimensions and `MPI_Allgatherv` is used to reconstruct full position vectors when needed. See `src/main_mpi_dim.c`. 
+ Here, the main loop is parallelized across dimensions, which can be beneficial when the cost of evaluating the objective function or computing gradients is dominated by per-dimension work (e.g. very high `nd`). However, this approach introduces higher communication overhead due to the need for frequent all-gather operations to share updated positions across ranks, and it requires more complex synchronization to ensure consistency of the shared state.
+
+- *Rotation-level decomposition*: the inner rotational local-search probes are distributed across ranks and the best candidate is found with a reduction (e.g. `MPI_MAXLOC` or custom two-value reduction). See `src/main_mpi_rot.c`.
+ Like the dimension-level approach, this strategy can be effective when the cost of the rotational search is significant (e.g. large `rotations`), but it also introduces communication overhead due to the need for reductions to find the best candidate across ranks. However, it minimizes redundant objective evaluations since each rank only evaluates a subset of the rotations, and the reduction combines results efficiently.
+
+\
+For MPI variants we chose straightforward collective patterns (`Allreduce` / `Allgatherv` / `MPI_Bcast`) to keep the code readable and portable;
+
+
 == OpenMP Implementations
 
+OpenMP variants exploit shared memory to avoid message passing; the code, like the MPI variants, uses different decomposition strategies depending on which loop is most expensive.
+
+- *Shark-level (thread over sharks)*: each OpenMP thread processes different sharks end-to-end and maintains thread-local scratch buffers and per-thread best values to reduce contention. See `src/main_openmp_sharks.c`. 
+ A parallel region is created through `#pragma omp parallel` and the outer loop over sharks is partitioned with `#pragma omp for`. Each thread maintains its own RNG state and scratch arrays to avoid data races and false sharing. At the end of the loop, a reduction is performed to find the global best solution across threads.
+
+
+- *Dimension-level (thread over dimensions)*: 
+- *Rotation-level (parallel rotation probes)*: 
+
+\
+OpenMP versions emphasize minimizing synchronization points and using per-thread storage for temporary arrays.
+
 == Hybrid MPI+OpenMP Implementations
+
+
+== Notes and Supporting Scripts
+The algorithmic core (`sso_update_speed`, `sso_move_forward`, `sso_unrotational_search`, `sso_sharks_alloc`) is implemented in `src/sso/sso.c` and reused across every main entrypoint; this keeps the implementations comparable and reduces duplication. \
+Argument parsing and default parameters live in `src/sso/parse_args.c` and are extended in each `main_*` file to add parallel-specific options (threads, dim-procs, tsharks, etc.). \
+Benchmarking and plotting tools are under `benchmarks/` and `tests/` (examples: `tests/launch_tests.sh`, `benchmarks/plot_results.py`). These scripts were used to generate the figures reported in Section 4.
 
 
 = Performance and Scalability Analysis
@@ -227,27 +267,28 @@ The rest of the parameters (such as `eta`, `alpha`, `beta`) are set to their def
 In order to launch several tests with different parameters, we developed a set of scripts that automate the execution of the various implementations on the HPC cluster. The scripts allow us to easily vary the number of chunks to select on the cluster, processes and threads used in the MPI and OpenMP methods.
 Regarding the execution modes in the PBS system, we decided to stick with the `excl` mode, which ensures that the allocated resources are not shared with other jobs. This choice allows us to minimize interference and obtain more consistent performance measurements.
 
-#figure([
-  #codly(languages: codly-languages)
-  #show raw: set text(font: "JetBrains Mono", size: code-size)
-  ```bash
-  ...
-  for procs in "${PROC_VALUES[@]}"; do
-    for thrds in "${THRD_VALUES[@]}"; do
-      while [[ $(qstat -u $USER | wc -l) -ge 30 ]]; do
-        sleep 10
+#figure(
+  [
+    #codly(languages: codly-languages)
+    #show raw: set text(font: "JetBrains Mono", size: code-size)
+    ```bash
+      ...
+      for procs in "${PROC_VALUES[@]}"; do
+        for thrds in "${THRD_VALUES[@]}"; do
+          while [[ $(qstat -u $USER | wc -l) -ge 30 ]]; do
+            sleep 10
+          done
+          sed \
+            -e "s/\${N_THRD}/$thrds/g" \
+            -e "s/\${N_PROC}/$procs/g" \
+            -e "s/\${JOB_NAME}/$JOB_NAME/g" \
+            -e "s/\${N_CPUS}/$N_CPUS/g" \
+            -e "s/\${PLACE}/$PLACE/g" \
+            "$EXEC" | qsub
+        done
       done
-      sed \
-        -e "s/\${N_THRD}/$thrds/g" \
-        -e "s/\${N_PROC}/$procs/g" \
-        -e "s/\${JOB_NAME}/$JOB_NAME/g" \
-        -e "s/\${N_CPUS}/$N_CPUS/g" \
-        -e "s/\${PLACE}/$PLACE/g" \
-        "$EXEC" | qsub
-    done
-  done
-```],
-caption: [A portion of the script used to launch the tests on the HPC cluster. The script iterates over different values of processes and threads (user-defined), checks for the number of running jobs, and submits new jobs using `qsub` with the appropriate parameters.]
+    ```],
+  caption: [A simplified portion of the script used to launch the tests on the HPC cluster. The script iterates over different values of processes and threads (user-defined), checks for the number of running jobs, and submits new jobs using `qsub` with the appropriate parameters.],
 )<launch_script>
 
 #figure(
@@ -269,13 +310,16 @@ caption: [A portion of the script used to launch the tests on the HPC cluster. T
     mpirun -n $(( ${N_CPUS} * ${N_PROC} )) ./parallel-sso/sso_hybrid_sharks -p 1000 -d 200 -k 1000 -m 50 -t ${N_THRD}
     ```
   ],
-  caption: [An example PBS script, edited by @launch_script. The script specifies resource requirements, loads necessary modules, and runs the executable with the defined parameters for sharks, dimensions, stages, rotations, and threads.]
+  caption: [An example PBS script, edited by @launch_script. The script specifies resource requirements, loads necessary modules, and runs the executable with the defined parameters for sharks, dimensions, stages, rotations, and threads.],
 ) <pbs_script>
 
 
 The implementation contains three different objective functions (in `sso/ofuncs.c`), taken from the original SSO paper, that are used for testing the algorithm's performance and scalability. In our experiments, we used the Rastrigin function @rastrigin (set as default in the code), as the differences between the various objective functions were negligible in terms of execution time and speedup.
 
-#figure(image("images/Rastrigin.png", width: 100%), caption: [Rastrigin function, a common benchmark for optimization algorithms.])
+#figure(
+  image("images/Rastrigin.png", width: 100%),
+  caption: [Rastrigin function, a common benchmark for optimization algorithms.],
+)
 
 
 == Varying number of processes
