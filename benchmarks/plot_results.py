@@ -146,8 +146,8 @@ def label_for_file(file_path: Path):
 
 
 def family_for_file(file_path: Path):
-    if file_path.name == "mpi_dim.txt":
-        return "mpi_dim"
+    if file_path.name in {"mpi_dim.txt", "openmp_dim.txt"}:
+        return "dim"
     if file_path.name in {"mpi_sharks.txt", "openmp_sharks.txt"}:
         return "sharks"
     if file_path.parent.name in {"hybrid_sharks", "hybrid_hybrid"}:

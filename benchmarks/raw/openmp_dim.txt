@@ -1,0 +1,22 @@
+threads=1 Total OpenMP time: 125.615967 s
+threads=2 Total OpenMP time: 125.667470 s
+threads=4 Total OpenMP time: 126.280005 s
+threads=8 Total OpenMP time: 127.596830 s
+threads=16 Total OpenMP time: 197.854144 s
+threads=64 Total OpenMP time: 195.082810 s
+threads=32 Total OpenMP time: 229.499674 s
+
+threads=1 Total OpenMP time: 177.932294 s
+threads=2 Total OpenMP time: 185.900321 s
+threads=4 Total OpenMP time: 126.777051 s
+threads=8 Total OpenMP time: 127.578865 s
+threads=32 Total OpenMP time: 244.656243 s
+threads=64 Total OpenMP time: 268.593163 s
+
+threads=1 Total OpenMP time: 177.699074 s
+threads=2 Total OpenMP time: 179.239978 s
+threads=4 Total OpenMP time: 187.891762 s
+threads=8 Total OpenMP time: 193.939000 s
+threads=16 Total OpenMP time: 198.064914 s
+threads=32 Total OpenMP time: 240.087867 s
+threads=64 Total OpenMP time: 257.861889 s
