@@ -136,10 +136,16 @@ def plot_metric(metrics, x_label, y_key, y_label, title, output_path, y_limits=N
 def label_for_file(file_path: Path):
     if file_path.name == "mpi_dim.txt":
         return "MPI (dimensions)"
+    if file_path.name == "openmp_dim.txt":
+        return "OpenMP (dimensions)"
     if file_path.name == "mpi_sharks.txt":
         return "MPI (sharks)"
     if file_path.name == "openmp_sharks.txt":
         return "OpenMP (sharks)"
+    if file_path.name == "mpi_rot.txt":
+        return "MPI (rotations)"
+    if file_path.name == "openmp_rot.txt":
+        return "OpenMP (rotations)"
     if file_path.parent.name in {"hybrid_sharks", "hybrid_hybrid"}:
         return f"{file_path.parent.name.replace('_', ' ').title()} ({file_path.stem.split('_')[-1]} procs)"
     return file_path.stem
@@ -150,6 +156,8 @@ def family_for_file(file_path: Path):
         return "dim"
     if file_path.name in {"mpi_sharks.txt", "openmp_sharks.txt"}:
         return "sharks"
+    if file_path.name in {"mpi_rot.txt", "openmp_rot.txt"}:
+        return "rot"
     if file_path.parent.name in {"hybrid_sharks", "hybrid_hybrid"}:
         return file_path.parent.name
     return None
@@ -162,9 +170,11 @@ def x_label_for_axis(axis: str):
 def generate_family_plots(family_name: str, series_data, output_dir: Path):
     title_map = {
         "mpi_dim": "MPI dimensions",
+        "dim": "Dimensions",
         "sharks": "Sharks",
         "hybrid_sharks": "Hybrid sharks",
         "hybrid_hybrid": "Hybrid hybrid",
+        "rot": "Rotations",
     }
 
     for metric_key, y_label, suffix in (
