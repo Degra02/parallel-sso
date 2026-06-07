@@ -134,21 +134,41 @@ def plot_metric(metrics, x_label, y_key, y_label, title, output_path, y_limits=N
 
 
 def label_for_file(file_path: Path):
-    if file_path.name == "mpi_dim.txt":
-        return "MPI (dimensions)"
-    if file_path.name == "openmp_dim.txt":
-        return "OpenMP (dimensions)"
-    if file_path.name == "mpi_sharks.txt":
-        return "MPI (sharks)"
-    if file_path.name == "openmp_sharks.txt":
-        return "OpenMP (sharks)"
-    if file_path.name == "mpi_rot.txt":
-        return "MPI (rotations)"
-    if file_path.name == "openmp_rot.txt":
-        return "OpenMP (rotations)"
-    if file_path.parent.name in {"hybrid_sharks", "hybrid_hybrid"}:
+    name_map = {
+        "mpi_dim.txt": "MPI (dimensions)",
+        "openmp_dim.txt": "OpenMP (dimensions)",
+        "mpi_sharks.txt": "MPI (sharks)",
+        "openmp_sharks.txt": "OpenMP (sharks)",
+        "mpi_rot.txt": "MPI (rotations)",
+        "openmp_rot.txt": "OpenMP (rotations)",
+        "mpi_rot_huge.txt": "MPI (rotations, huge)",
+        "openmp_rot_huge.txt": "OpenMP (rotations, huge)",
+        "mpi_sharks_huge.txt": "MPI (sharks, huge)",
+        "openmp_sharks_huge.txt": "OpenMP (sharks, huge)",
+    }
+
+    if file_path.name in name_map:
+        return name_map[file_path.name]
+    elif file_path.parent.name in {"hybrid_sharks", "hybrid_hybrid"}:
         return f"{file_path.parent.name.replace('_', ' ').title()} ({file_path.stem.split('_')[-1]} procs)"
+        
     return file_path.stem
+
+    # if file_path.name == "mpi_dim.txt":
+    #     return "MPI (dimensions)"
+    # if file_path.name == "openmp_dim.txt":
+    #     return "OpenMP (dimensions)"
+    # if file_path.name == "mpi_sharks.txt":
+    #     return "MPI (sharks)"
+    # if file_path.name == "openmp_sharks.txt":
+    #     return "OpenMP (sharks)"
+    # if file_path.name == "mpi_rot.txt":
+    #     return "MPI (rotations)"
+    # if file_path.name == "openmp_rot.txt":
+    #     return "OpenMP (rotations)"
+    # if file_path.parent.name in {"hybrid_sharks", "hybrid_hybrid"}:
+    #     return f"{file_path.parent.name.replace('_', ' ').title()} ({file_path.stem.split('_')[-1]} procs)"
+    # return file_path.stem
 
 
 def family_for_file(file_path: Path):
@@ -158,6 +178,8 @@ def family_for_file(file_path: Path):
         return "sharks"
     if file_path.name in {"mpi_rot.txt", "openmp_rot.txt"}:
         return "rot"
+    if file_path.name in {"mpi_rot_huge.txt", "openmp_rot_huge.txt", "mpi_sharks_huge.txt", "openmp_sharks_huge.txt"}:
+        return "rot_huge"
     if file_path.parent.name in {"hybrid_sharks", "hybrid_hybrid"}:
         return file_path.parent.name
     return None
@@ -175,6 +197,7 @@ def generate_family_plots(family_name: str, series_data, output_dir: Path):
         "hybrid_sharks": "Hybrid sharks",
         "hybrid_hybrid": "Hybrid hybrid",
         "rot": "Rotations",
+        "rot_huge": "Rotations (huge)",
     }
 
     for metric_key, y_label, suffix in (
@@ -205,33 +228,11 @@ def generate_family_plots(family_name: str, series_data, output_dir: Path):
         plt.close()
 
 
-def cleanup_legacy_outputs(output_dir: Path):
-    # Remove plots produced by the previous, narrower version of this script.
-    for legacy_name in (
-        "mpi_time.png",
-        "mpi_speedup.png",
-        "mpi_efficiency.png",
-        "openmp_time.png",
-        "openmp_speedup.png",
-        "openmp_efficiency.png",
-        "mpi_sharks_time.png",
-        "mpi_sharks_speedup.png",
-        "mpi_sharks_efficiency.png",
-        "openmp_sharks_time.png",
-        "openmp_sharks_speedup.png",
-        "openmp_sharks_efficiency.png",
-    ):
-        legacy_path = output_dir / legacy_name
-        if legacy_path.exists():
-            legacy_path.unlink()
-
-
 def main():
     script_dir = Path(__file__).resolve().parent
     raw_dir = script_dir / "raw"
     output_dir = script_dir / "plots"
     output_dir.mkdir(parents=True, exist_ok=True)
-    cleanup_legacy_outputs(output_dir)
 
     family_series = defaultdict(list)
 
