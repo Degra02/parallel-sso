@@ -10,6 +10,7 @@
 #include <stdlib.h>
 #include <omp.h>
 #include <stdio.h>
+#include <string.h>
 
 struct Args {
     size_t threads;
@@ -67,6 +68,8 @@ int main(int argc, char *argv[]) {
         return EXIT_FAILURE;
     }
     size_t dim_threads_num = omp_threads / args.shark_threads;
+    omp_set_dynamic(0);
+    omp_set_max_active_levels(2);
 
     double *scratch_all = calloc((size_t)omp_threads * cfg.nd, sizeof(double));
     double *thread_best_pos_all = calloc((size_t)omp_threads * cfg.nd, sizeof(double));
@@ -77,18 +80,19 @@ int main(int argc, char *argv[]) {
         goto cleanup;
     }
 
-    // Parallelize over sharks; each thread evolves its sharks through all stages.
+    // Nested OpenMP: outer team splits sharks, inner teams split dimensions.
     BENCHMARK_OPENMP(total_start, "Total OpenMP time") {
-        #pragma omp parallel num_threads(omp_threads)
-        #pragma omp single
+        #pragma omp parallel num_threads(shark_threads_num) default(none) \
+            shared(cfg, domain, sharks, scratch_all, thread_best_pos_all, \
+                   best_min, best_pos, seed_base, dim_threads_num)
         {
-            int tid = omp_get_thread_num();
-            unsigned int seed = seed_base + (unsigned)tid;
-            double *local_scratch = &scratch_all[(size_t)tid * cfg.nd];
-            double *local_best_pos = &thread_best_pos_all[(size_t)tid * cfg.nd];
+            int outer_tid = omp_get_thread_num();
+            unsigned int seed = seed_base + ((unsigned int)outer_tid << 16);
+            double *local_scratch = &scratch_all[(size_t)outer_tid * cfg.nd];
+            double *local_best_pos = &thread_best_pos_all[(size_t)outer_tid * cfg.nd];
             double local_best_min = INFINITY;
 
-            #pragma omp taskloop num_tasks(shark_threads_num) nogroup
+            #pragma omp for schedule(static)
             for (size_t shark = 0; shark < cfg.np; ++shark) {
                 struct Shark *shark_ptr = &sharks[shark];
 
@@ -98,7 +102,9 @@ int main(int argc, char *argv[]) {
                     double R1 = thread_rand_r(&seed, 0.0, 1.0);
                     double R2 = thread_rand_r(&seed, 0.0, 1.0);
 
-                    #pragma omp taskloop num_tasks(dim_threads_num)
+                    #pragma omp parallel for num_threads(dim_threads_num) \
+                        default(none) shared(cfg, domain, shark_ptr, dim_threads_num) \
+                        firstprivate(R1, R2) schedule(static)
                     for (size_t dim = 0; dim < cfg.nd; ++dim) {
                         double v_prev    = shark_ptr->speed[dim];
 
@@ -120,7 +126,9 @@ int main(int argc, char *argv[]) {
                     // to position must happen after eval_derivative calls.
 
                     // Update position
-                    #pragma omp taskloop num_tasks(dim_threads_num)
+                    #pragma omp parallel for num_threads(dim_threads_num) \
+                        default(none) shared(cfg, domain, shark_ptr, dim_threads_num) \
+                        schedule(static)
                     for (size_t dim = 0; dim < cfg.nd; ++dim) {
                         shark_ptr->position[dim] = utils_clamp(
                                 shark_ptr->position[dim] + shark_ptr->speed[dim],
@@ -138,7 +146,9 @@ int main(int argc, char *argv[]) {
                     for (uint32_t m = 0; m < cfg.rotations; ++m) {
                         double r3 = thread_rand_r(&seed, -1.0, 1.0);
 
-                        #pragma omp taskloop num_tasks(dim_threads_num)
+                        #pragma omp parallel for num_threads(dim_threads_num) \
+                            default(none) shared(cfg, domain, shark_ptr, candidate, dim_threads_num) \
+                            firstprivate(r3) schedule(static)
                         for (size_t dim = 0; dim < cfg.nd; ++dim) {
                             candidate[dim] = utils_clamp(
                                     shark_ptr->position[dim] * (1 + r3),
@@ -153,7 +163,9 @@ int main(int argc, char *argv[]) {
                     }
 
                     if (best_r3 != 0.0) {
-                        #pragma omp taskloop num_tasks(dim_threads_num)
+                        #pragma omp parallel for num_threads(dim_threads_num) \
+                            default(none) shared(cfg, domain, shark_ptr, dim_threads_num) \
+                            firstprivate(best_r3) schedule(static)
                         for (size_t dim = 0; dim < cfg.nd; ++dim) {
                             shark_ptr->position[dim] = utils_clamp(
                                         shark_ptr->position[dim] * (1 + best_r3),

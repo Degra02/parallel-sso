@@ -134,45 +134,34 @@ int main(int argc, char *argv[]) {
                         {
                             best = OF(shark_ptr->position, cfg.nd, cfg.obj);
                             best_r3 = 0.0;
-                        }
 
-                        for (uint32_t m = 0; m < cfg.rotations; ++m) {
-                            #pragma omp single
-                            {
+                            for (uint32_t m = 0; m < cfg.rotations; ++m) {
                                 r3 = utils_rand(-1, 1);
-                            }
 
-                            // Rotate around the shark position.
-                            #pragma omp for schedule(static)
-                            for (size_t dim = 0; dim < cfg.nd; ++dim) {
-                                scratch[dim] = utils_clamp(
-                                            shark_ptr->position[dim] * (1 + r3),
-                                            &domain[dim]);
-                            }
+                                // Rotate around the shark position.
+                                for (size_t dim = 0; dim < cfg.nd; ++dim) {
+                                    scratch[dim] = utils_clamp(
+                                                shark_ptr->position[dim] * (1 + r3),
+                                                &domain[dim]);
+                                }
 
-                            // Update position if better than the current one.
-                            #pragma omp single
-                            {
+                                // Update position if better than the current one.
                                 double val = OF(scratch, cfg.nd, cfg.obj);
                                 if (val > best) {
                                     best = val;
                                     best_r3 = r3;
                                 }
                             }
-                        }
 
-                        if (best_r3 != 0.0) {
-                            #pragma omp for schedule(static)
-                            for (size_t dim = 0; dim < cfg.nd; ++dim) {
-                                shark_ptr->position[dim] = utils_clamp(
-                                            shark_ptr->position[dim] * (1 + best_r3),
-                                            &domain[dim]);
+                            if (best_r3 != 0.0) {
+                                for (size_t dim = 0; dim < cfg.nd; ++dim) {
+                                    shark_ptr->position[dim] = utils_clamp(
+                                                shark_ptr->position[dim] * (1 + best_r3),
+                                                &domain[dim]);
+                                }
                             }
-                        }
 
-                        // If we have an all-time best value, update the current one.
-                        #pragma omp single
-                        {
+                            // If we have an all-time best value, update the current one.
                             double cur_min = -best;
                             if (cur_min < best_min) {
                                 best_min = cur_min;
