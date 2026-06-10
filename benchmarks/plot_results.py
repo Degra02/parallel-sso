@@ -113,6 +113,47 @@ def compute_metrics(results):
     return metrics
 
 
+def compute_hybrid_global_metrics(entries):
+    baseline_time = None
+
+    for entry in entries:
+        if entry["procs"] == 1 and entry["threads"] == 1:
+            baseline_time = entry["time"]
+            break
+
+    if baseline_time is None:
+        raise ValueError("Hybrid baseline with 1 process and 1 thread not found.")
+
+    metrics_by_procs = defaultdict(list)
+
+    for entry in entries:
+        procs = entry["procs"]
+        threads = entry["threads"]
+
+        if procs is None or threads is None:
+            raise ValueError("Hybrid global metrics require both procs and threads.")
+
+        workers = procs * threads
+        speedup = baseline_time / entry["time"]
+        efficiency = speedup / workers
+
+        metrics_by_procs[procs].append(
+            {
+                "procs": procs,
+                "threads": threads,
+                "workers": workers,
+                "time": entry["time"],
+                "speedup": speedup,
+                "efficiency": efficiency,
+            }
+        )
+
+    for metrics in metrics_by_procs.values():
+        metrics.sort(key=lambda row: row["workers"])
+
+    return dict(sorted(metrics_by_procs.items()))
+
+
 def plot_metric(metrics, x_label, y_key, y_label, title, output_path, y_limits=None):
     workers = [row["workers"] for row in metrics]
     values = [row[y_key] for row in metrics]
@@ -239,6 +280,77 @@ def generate_family_plots(family_name: str, series_data, output_dir: Path):
         plt.close()
 
 
+def generate_hybrid_global_plots(raw_dir: Path, output_dir: Path):
+    hybrid_dir = raw_dir / "hybrid_sharks"
+
+    if not hybrid_dir.exists():
+        return
+
+    entries = []
+    for file_path in sorted(hybrid_dir.glob("*.txt")):
+        entries.extend(parse_entries(file_path))
+
+    if not entries:
+        return
+
+    metrics_by_procs = compute_hybrid_global_metrics(entries)
+
+    plot_specs = (
+        (
+            "time",
+            "Execution time (seconds)",
+            "Hybrid sharks global: Execution time",
+            "time",
+            None,
+        ),
+        (
+            "speedup",
+            "Speedup (T(1,1) / T(P,T))",
+            "Hybrid sharks global: Speedup",
+            "speedup",
+            None,
+        ),
+        (
+            "efficiency",
+            "Efficiency (T(1,1) / (P*T*T(P,T)))",
+            "Hybrid sharks global: Efficiency",
+            "efficiency",
+            (0, 1.05),
+        ),
+    )
+
+    for metric_key, y_label, title, suffix, y_limits in plot_specs:
+        plt.figure(figsize=(10, 5.5))
+        all_workers = sorted({row["workers"] for metrics in metrics_by_procs.values() for row in metrics})
+
+        for procs, metrics in metrics_by_procs.items():
+            x_values = [row["workers"] for row in metrics]
+            y_values = [row[metric_key] for row in metrics]
+            plt.plot(
+                x_values,
+                y_values,
+                marker="o",
+                linewidth=1.5,
+                markersize=4,
+                label=f"Hybrid Sharks ({procs} procs)",
+            )
+
+        plt.xscale("log", base=2)
+        plt.xticks(all_workers, [str(worker) for worker in all_workers])
+        plt.xlabel("Number of workers (processes * threads, log2 scale)")
+        plt.ylabel(y_label)
+        plt.title(title)
+        plt.grid(True, alpha=0.3)
+        plt.legend()
+
+        if y_limits is not None:
+            plt.ylim(y_limits)
+
+        plt.tight_layout()
+        plt.savefig(output_dir / f"hybrid_sharks_global_{suffix}.png", dpi=300)
+        plt.close()
+
+
 def main():
     script_dir = Path(__file__).resolve().parent
     raw_dir = script_dir / "raw"
@@ -267,6 +379,8 @@ def main():
 
     for family_name, series_data in family_series.items():
         generate_family_plots(family_name, series_data, output_dir)
+
+    generate_hybrid_global_plots(raw_dir, output_dir)
 
 
 if __name__ == "__main__":
