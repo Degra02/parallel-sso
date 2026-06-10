@@ -189,6 +189,18 @@ def x_label_for_axis(axis: str):
     return "Number of threads" if axis == "threads" else "Number of processes"
 
 
+def x_label_for_family(family_name: str, series_data):
+    axes = {axis for _, axis, _ in series_data}
+
+    if family_name.startswith("hybrid"):
+        return "Number of threads"
+    if axes == {"threads"}:
+        return "Number of threads"
+    if axes == {"procs"}:
+        return "Number of processes"
+    return "Number of processes/threads"
+
+
 def generate_family_plots(family_name: str, series_data, output_dir: Path):
     title_map = {
         "mpi_dim": "MPI dimensions",
@@ -207,14 +219,13 @@ def generate_family_plots(family_name: str, series_data, output_dir: Path):
     ):
         plt.figure(figsize=(10, 5.5))
 
-        x_label = None
+        x_label = x_label_for_family(family_name, series_data)
         for label, axis, metrics in series_data:
-            x_label = x_label or x_label_for_axis(axis)
             x_values = [row["workers"] for row in metrics]
             y_values = [row[metric_key] for row in metrics]
             plt.plot(x_values, y_values, marker="o", linewidth=1.5, markersize=4, label=label)
 
-        plt.xlabel(x_label or "Workers")
+        plt.xlabel(x_label)
         plt.ylabel(y_label)
         plt.title(f"{title_map.get(family_name, family_name.replace('_', ' ').title())}: {y_label}")
         plt.grid(True, alpha=0.3)
