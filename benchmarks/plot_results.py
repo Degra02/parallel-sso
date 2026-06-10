@@ -266,6 +266,9 @@ def generate_family_plots(family_name: str, series_data, output_dir: Path):
             y_values = [row[metric_key] for row in metrics]
             plt.plot(x_values, y_values, marker="o", linewidth=1.5, markersize=4, label=label)
 
+        all_x = sorted({row["workers"] for _, _, metrics in series_data for row in metrics})
+        plt.xscale("log", base=2)
+        plt.xticks(all_x, [str(v) for v in all_x])
         plt.xlabel(x_label)
         plt.ylabel(y_label)
         plt.title(f"{title_map.get(family_name, family_name.replace('_', ' ').title())}: {y_label}")

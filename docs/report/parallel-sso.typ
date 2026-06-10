@@ -56,8 +56,11 @@ This paper investigates multiple parallel implementations of the Shark Smell Opt
 
 By combining these algorithmic decomposition strategies with MPI, OpenMP, and hybrid MPI+OpenMP execution models, the work evaluates multiple parallel variants of SSO and analyzes their scalability, synchronization behavior, communication overhead, and computational efficiency on multicore HPC architectures.
 
+\
+
+The study is structured as a controlled, point-by-point investigation: each independent loop of the serial algorithm is parallelized in isolation, so that the observed scaling behavior can be attributed to that specific computational step rather than to a combination of optimizations applied at once. This is what motivates the comparatively large number of variants reported here, and it is precisely this systematic exploration of each parallelizable point that lets us identify the configuration that ultimately delivers the best performance.
+
 == The Shark Smell Optimization Algorithm
-#figure(image("images/shark.png", width: 70%), caption: [Schematic illustration of a shark's movement to odor source.])
 
 The SSO @sso algorithm is a population-based metaheuristic inspired by sharks' ability to locate prey by sensing and following odor gradients.
 
@@ -77,6 +80,8 @@ The method maintains a population of candidate solutions (`shark`s) that move th
   ],
   caption: [Shark data structure],
 )
+
+#figure(image("images/shark.png", width: 60%), caption: [Schematic illustration of a shark's movement to odor source.])
 
 Each shark iteratively updates its position and speed based on a combination of inertia (momentum from previous movement) and attraction toward promising regions of the search space (global best or local neighborhood best). Additionally, a local rotational search is performed around improved sharks to refine their positions.
 
@@ -157,6 +162,10 @@ In the following graph, we illustrate the slowdown of the serial algorithm as va
 The graph above underlines how the SSO algorithm would benefit from parallelization, especially as the problem size increases. The computational cost grows significantly with the number of sharks, dimensions, and iterations, making it crucial to explore parallel design strategies to achieve practical execution times for larger problem instances.
 
 Although the outer "stage" loop over the stage index `k`, in the graph indicated by the red line, might at first seem parallelizable, it is inherently sequential: each iteration at stage `k` consumes and modifies data produced at stage `k-1` (for example updated shark positions, velocities and fitness values). These true data dependencies prevent concurrent execution of different `k` iterations without violating correctness. Any approach to overlap would require complex checkpointing or synchronization that typically outweighs potential gains. Therefore, parallelism is applied at the shark and dimension levels rather than across stage iterations.
+
+\
+
+Each decomposition strategy we implement targets exactly one of the independent loops of the serial algorithm shown in the previous section. The outer shark loop defines `shark-level` parallelism; steps 1 and 2 (the per-dimension derivative, speed update and forward movement) define `dimension-level` parallelism; step 3 (the rotational local search over the `M` probes) defines `rotation-level` parallelism. Step 4 is the only point requiring coordination, since updating the global best is a reduction across the otherwise independent work. By parallelizing one such loop at a time and benchmarking it in isolation, we can measure the scaling contribution of each individual hot-spot instead of conflating several optimizations inside a single tuned solver. Crossing each decomposition with the three programming models then separates the effect of the algorithmic decomposition from the effect of the underlying memory model.
 
 \
 
@@ -428,6 +437,23 @@ For a fixed number of MPI processes, adding OpenMP threads reduces execution tim
 Comparing hybrid to pure-MPI at the same total worker count $P times T$ reveals a consistent advantage for the hybrid configuration at high total counts. Eight MPI processes with 8 threads each (64 total workers) complete in 3.71 s (speedup 33.4×, efficiency 52%), while pure MPI at 64 processes completes in 2.91 s (speedup 42.7×, efficiency 67%). Pure MPI wins at 64 total workers because the inter-process reduction is cheap for a small reduction vector. However, as the total worker count grows further, the hybrid approach scales better: with p=16 and t=64 (1024 total workers) the time is 0.35 s, a regime where pure MPI at 1024 processes would face severe load imbalance since each rank would hold fewer than one shark.
 
 Efficiency drops below 30% at very high combined counts (p=32, t=32 or p=64, t=16) because the local population per rank falls to 1--2 sharks and any imbalance in per-shark computation time is magnified. The practical operating point for this problem size is around p=8--16 processes and t=8--32 threads, yielding speedups of 50--230× with efficiencies of 30--52%.
+
+\
+
+The plots in @fig-hybrid normalize each curve to its own single-thread time, which isolates the effect of adding threads to a fixed process count but hides the comparison across different process counts. @fig-hybrid-global instead normalizes every configuration to the true serial baseline `T(1,1)` and places the total worker count $P times T$ on a common log2 axis, so that all hybrid configurations can be read against one another and against serial execution directly.
+
+#figure(
+  grid(rows: 3, gutter: 4pt,
+    image("images/hybrid_sharks_global_time.png"),
+    image("images/hybrid_sharks_global_speedup.png"),
+    image("images/hybrid_sharks_global_efficiency.png"),
+  ),
+  caption: [Hybrid MPI+OpenMP shark-level implementation, global view: execution time, speedup, and efficiency measured against the serial baseline $T(1,1)$. Each line corresponds to a fixed number of MPI processes; the x-axis is the total number of workers $P times T$ on a log2 scale.],
+) <fig-hybrid-global>
+
+The most striking feature of this view is the efficiency plot: the curves for every process count collapse onto a single envelope, falling from roughly 60% at low worker counts to about 22% at 2048 workers. In other words, efficiency is governed almost entirely by the total degree of parallelism $P times T$, and is largely insensitive to how that parallelism is split between MPI processes and OpenMP threads. The freedom to trade processes for threads, which is the defining feature of the hybrid model, does not buy extra efficiency at a fixed total core count; it only changes whether that core count is reachable at all.
+
+This reframes the pure-MPI versus hybrid comparison made above. Hybrid does not win by being intrinsically more efficient than pure MPI at equal worker count; it wins by reaching worker counts (1024, 2048) that pure MPI cannot exploit, because at those counts pure MPI would assign fewer than one shark per rank. The global time curve confirms this: all splits fall onto a single time-versus-workers trajectory that bottoms out below one second, while the speedup curve climbs monotonically to the 450× peak at 2048 workers. The practical consequence is an approximate iso-efficiency rule for this problem size: efficiency stays near or above 45% as long as the total worker count is kept at or below roughly 512, beyond which the per-rank population becomes too thin to sustain it regardless of the chosen split.
 
 == Playing with PBS
 
