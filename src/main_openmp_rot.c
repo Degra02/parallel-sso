@@ -80,51 +80,60 @@ int main(int argc, char *argv[]) {
         return EXIT_FAILURE;
     }
 
+    // Shared per-stage state, written serially and read by all threads in the rotation loop.
+    double best = 0.0, best_r3 = 0.0;
+    struct RotationBest rot_best = { .best = -INFINITY, .best_r3 = 0.0 };
+
     BENCHMARK_OPENMP(total_start, "Total OpenMP time") {
-        for (size_t shark = 0; shark < cfg.np; ++shark) {
-            struct Shark *shark_ptr = &sharks[shark];
 
-            // Perform k_max movement stages for this shark.
-            for (size_t k = 0; k < cfg.k_max; ++k) {
-                // Update shark speed using a serial PRNG draw.
-                double R1 = utils_rand(0.0, 1.0);
-                double R2 = utils_rand(0.0, 1.0);
+        #pragma omp parallel num_threads(omp_threads) default(none) \
+            shared(cfg, domain, sharks, scratch_all, best_pos, best_min, \
+                   seed_base, best, best_r3, rot_best)
+        {
+            int tid = omp_get_thread_num();
+            unsigned int seed = seed_base + ((unsigned int)tid << 16);
+            double *candidate = &scratch_all[(size_t)tid * cfg.nd];
 
-                for (size_t dim = 0; dim < cfg.nd; ++dim) {
-                    double v_prev    = shark_ptr->speed[dim];
+            for (size_t shark = 0; shark < cfg.np; ++shark) {
+                struct Shark *shark_ptr = &sharks[shark];
 
-                    double derivative = eval_derivative(shark_ptr->position,
-                                                        cfg.nd, cfg.obj, dim);
-                    double grad_term = cfg.eta * R1 * derivative;
-                    double mom_term  = cfg.alpha * R2 * v_prev;
-                    shark_ptr->speed[dim] = grad_term + mom_term;
+                for (size_t k = 0; k < cfg.k_max; ++k) {
 
-                    if (fabs(v_prev) >= 1e-15) {
-                        double limit = cfg.beta * v_prev;
-                        if (fabs(shark_ptr->speed[dim]) > fabs(limit)) {
-                            shark_ptr->speed[dim] = limit;
+                    // Speed update, position update, and rotation state init are serial.
+                    #pragma omp single
+                    {
+                        double R1 = utils_rand(0.0, 1.0);
+                        double R2 = utils_rand(0.0, 1.0);
+
+                        for (size_t dim = 0; dim < cfg.nd; ++dim) {
+                            double v_prev = shark_ptr->speed[dim];
+
+                            double derivative = eval_derivative(shark_ptr->position,
+                                                                cfg.nd, cfg.obj, dim);
+                            double grad_term = cfg.eta * R1 * derivative;
+                            double mom_term  = cfg.alpha * R2 * v_prev;
+                            shark_ptr->speed[dim] = grad_term + mom_term;
+
+                            if (fabs(v_prev) >= 1e-15) {
+                                double limit = cfg.beta * v_prev;
+                                if (fabs(shark_ptr->speed[dim]) > fabs(limit)) {
+                                    shark_ptr->speed[dim] = limit;
+                                }
+                            }
                         }
+
+                        for (size_t dim = 0; dim < cfg.nd; ++dim) {
+                            shark_ptr->position[dim] = utils_clamp(
+                                    shark_ptr->position[dim] + shark_ptr->speed[dim],
+                                    &domain[dim]);
+                        }
+
+                        best = OF(shark_ptr->position, cfg.nd, cfg.obj);
+                        best_r3 = 0.0;
+                        rot_best = (struct RotationBest){ .best = -INFINITY, .best_r3 = 0.0 };
                     }
-                }
 
-                // Update position.
-                for (size_t dim = 0; dim < cfg.nd; ++dim) {
-                    shark_ptr->position[dim] = utils_clamp(
-                            shark_ptr->position[dim] + shark_ptr->speed[dim],
-                            &domain[dim]);
-                }
-
-                // Rotational local search: each thread evaluates a slice of candidates.
-                double best = OF(shark_ptr->position, cfg.nd, cfg.obj);
-                double best_r3 = 0.0;
-                struct RotationBest rot_best = { .best = -INFINITY, .best_r3 = 0.0 };
-
-                #pragma omp parallel num_threads(omp_threads) shared(shark_ptr, domain, scratch_all, rot_best)
-                {
-                    int tid = omp_get_thread_num();
-                    unsigned int seed = seed_base + ((unsigned int)tid << 16);
-                    double *candidate = &scratch_all[(size_t)tid * cfg.nd];
-
+                    // Rotational local search: each thread evaluates a slice of candidates.
                     #pragma omp for schedule(static) reduction(rot_best: rot_best)
                     for (uint32_t m = 0; m < cfg.rotations; ++m) {
                         double r3 = thread_rand_r(&seed, -1.0, 1.0);
@@ -140,29 +149,33 @@ int main(int argc, char *argv[]) {
                             rot_best.best_r3 = r3;
                         }
                     }
-                }
 
-                if (rot_best.best > best) {
-                    best = rot_best.best;
-                    best_r3 = rot_best.best_r3;
-                }
+                    // Apply best rotation and track global minimum.
+                    #pragma omp single
+                    {
+                        if (rot_best.best > best) {
+                            best = rot_best.best;
+                            best_r3 = rot_best.best_r3;
+                        }
 
-                if (best_r3 != 0.0) {
-                    for (size_t dim = 0; dim < cfg.nd; ++dim) {
-                        shark_ptr->position[dim] = utils_clamp(
-                                    shark_ptr->position[dim] * (1 + best_r3),
-                                    &domain[dim]);
+                        if (best_r3 != 0.0) {
+                            for (size_t dim = 0; dim < cfg.nd; ++dim) {
+                                shark_ptr->position[dim] = utils_clamp(
+                                            shark_ptr->position[dim] * (1 + best_r3),
+                                            &domain[dim]);
+                            }
+                        }
+
+                        double cur_min = -best;
+                        if (cur_min < best_min) {
+                            best_min = cur_min;
+                            memcpy(best_pos, shark_ptr->position, cfg.nd * sizeof(double));
+                        }
                     }
-                }
+                } // end stages
+            } // end sharks
+        } // end parallel
 
-                // Update the all-time best value.
-                double cur_min = -best;
-                if (cur_min < best_min) {
-                    best_min = cur_min;
-                    memcpy(best_pos, shark_ptr->position, cfg.nd * sizeof(double));
-                }
-            } // end stages
-        } // end sharks
     } // end benchmark
 
     print_result(best_min, best_pos, cfg.nd);
