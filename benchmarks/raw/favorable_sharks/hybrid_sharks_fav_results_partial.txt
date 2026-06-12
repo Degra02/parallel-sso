@@ -39,8 +39,8 @@ procs=32 threads=4 Total time: 1.932092 s
 procs=32 threads=8 Total time: 0.977560 s
 procs=32 threads=16 Total time: 0.627086 s
 
-
 procs=64 threads=1 Total time: 4.004708 s
 procs=64 threads=2 Total time: 1.925808 s
 procs=64 threads=4 Total time: 0.988059 s
 procs=64 threads=8 Total time: 0.506793 s
+procs=64 threads=16 Total time: 0.320375 s

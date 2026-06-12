@@ -648,6 +648,98 @@ def generate_hybrid_global_plots(raw_dir: Path, output_dir: Path):
         plt.close()
 
 
+def generate_favorable_sharks_plots(raw_dir: Path, plots_dir: Path):
+    favorable_dir = raw_dir / "favorable_sharks"
+
+    if not favorable_dir.exists():
+        return
+
+    output_dir = plots_dir / "favorable_sharks"
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    for old_plot in output_dir.glob("*.png"):
+        old_plot.unlink()
+
+    openmp_mpi_series = []
+    for label, file_name, axis in (
+        ("OpenMP threads", "openmp_sharks_fav_results.txt", "threads"),
+        ("MPI processes", "mpi_sharks_fav_results.txt", "procs"),
+    ):
+        entries = parse_entries(favorable_dir / file_name)
+        results = group_by_axis(entries, axis)
+        metrics = compute_metrics(results)
+        openmp_mpi_series.append((label, axis, metrics))
+
+    generate_family_plots(
+        "favorable_sharks_openmp_mpi",
+        openmp_mpi_series,
+        output_dir,
+    )
+
+    full_hybrid_file = favorable_dir / "hybrid_sharks_fav_results.txt"
+    partial_hybrid_file = favorable_dir / "hybrid_sharks_fav_results_partial.txt"
+
+    if full_hybrid_file.exists():
+        hybrid_file = full_hybrid_file
+    elif partial_hybrid_file.exists():
+        hybrid_file = partial_hybrid_file
+    else:
+        raise ValueError(f"No favorable hybrid results found under {favorable_dir}")
+
+    hybrid_entries = parse_entries(hybrid_file)
+    metrics_by_procs = compute_hybrid_global_metrics(hybrid_entries)
+    plot_specs = (
+        ("time", "Execution time (seconds)", "time", None),
+        ("speedup", "Speedup", "speedup", "strong_speedup"),
+        ("efficiency", "Efficiency", "efficiency", "strong_efficiency"),
+    )
+
+    for metric_key, y_label, suffix, ideal in plot_specs:
+        plt.figure(figsize=(10, 5.5))
+        all_workers = sorted(
+            {
+                row["workers"]
+                for metrics in metrics_by_procs.values()
+                for row in metrics
+            }
+        )
+        all_y = []
+
+        for procs, metrics in metrics_by_procs.items():
+            x_values = [row["workers"] for row in metrics]
+            y_values = [row[metric_key] for row in metrics]
+            all_y.extend(y_values)
+            process_label = "process" if procs == 1 else "processes"
+            plt.plot(
+                x_values,
+                y_values,
+                marker="o",
+                linewidth=1.5,
+                markersize=4,
+                label=f"{procs} MPI {process_label}",
+            )
+
+        all_y.extend(add_ideal_line(ideal, all_workers))
+
+        plt.xscale("log", base=2)
+        plt.xticks(all_workers, [str(worker) for worker in all_workers])
+        plt.xlabel("Total processes x threads")
+        plt.ylabel(y_label)
+        plt.title(f"Favorable sharks - Hybrid: {y_label}")
+        plt.grid(True, alpha=0.3)
+        plt.legend()
+
+        if metric_key == "efficiency":
+            apply_y_limits(all_y, (0, 1.05))
+
+        plt.tight_layout()
+        plt.savefig(
+            output_dir / f"favorable_sharks_hybrid_{suffix}.png",
+            dpi=300,
+        )
+        plt.close()
+
+
 def main():
     script_dir = Path(__file__).resolve().parent
     raw_dir = script_dir / "raw"
@@ -679,6 +771,7 @@ def main():
 
     generate_hybrid_global_plots(raw_dir, output_dir)
     generate_weak_scaling_sharks_plots(raw_dir, output_dir)
+    generate_favorable_sharks_plots(raw_dir, output_dir)
 
 
 if __name__ == "__main__":

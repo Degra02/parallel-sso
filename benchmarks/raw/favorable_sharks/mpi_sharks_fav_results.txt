@@ -3,5 +3,5 @@ procs=2 Total time: 92.435993 s
 procs=4 Total time: 50.238012 s
 procs=8 Total time: 25.445876 s
 procs=16 Total time: 14.073532 s
-procs=32 Total time: 12.292512 s
+procs=32 Total time: 8.092732 s
 procs=64 Total time: 4.059646 s
