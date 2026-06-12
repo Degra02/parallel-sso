@@ -52,7 +52,8 @@ This paper investigates multiple parallel implementations of the Shark Smell Opt
 
 - `shark-level` parallelism, where candidate solutions are distributed across population elements;
 - `dimension-level` parallelism, where computations across search-space dimensions are parallelized;
-- `hybrid` parallelism, combining both the other strategies.
+- `rotation-level` parallelism, where the local search around each candidate is parallelized;
+- `hybrid` parallelism, combining the other strategies.
 
 By combining these algorithmic decomposition strategies with MPI, OpenMP, and hybrid MPI+OpenMP execution models, the work evaluates multiple parallel variants of SSO and analyzes their scalability, synchronization behavior, communication overhead, and computational efficiency on multicore HPC architectures.
 
@@ -161,7 +162,7 @@ In the following graph, we illustrate the slowdown of the serial algorithm as va
 
 The graph above underlines how the SSO algorithm would benefit from parallelization, especially as the problem size increases. The computational cost grows significantly with the number of sharks, dimensions, and iterations, making it crucial to explore parallel design strategies to achieve practical execution times for larger problem instances.
 
-Although the outer "stage" loop over the stage index `k`, in the graph indicated by the red line, might at first seem parallelizable, it is inherently sequential: each iteration at stage `k` consumes and modifies data produced at stage `k-1` (for example updated shark positions, velocities and fitness values). These true data dependencies prevent concurrent execution of different `k` iterations without violating correctness. Any approach to overlap would require complex checkpointing or synchronization that typically outweighs potential gains. Therefore, parallelism is applied at the shark and dimension levels rather than across stage iterations.
+Although the outer "stage" loop over the stage index `k`, in the graph indicated by the red line, might at first seem a good candidate for parallelization, it is inherently sequential: each iteration at stage `k` consumes and modifies data produced at stage `k-1` (for example updated shark positions, velocities and fitness values). These true data dependencies prevent concurrent execution of different `k` iterations without violating correctness. Any approach to overlap would require complex checkpointing or synchronization that typically outweighs potential gains. Therefore, parallelism is applied at the shark, dimension and rotation levels rather than across stage iterations.
 
 \
 
@@ -169,18 +170,16 @@ Each decomposition strategy we implement targets exactly one of the independent 
 
 \
 
-This work therefore investigates the interaction between:
-
-- the programming model:
-  - MPI,
-  - OpenMP,
-  - hybrid MPI+OpenMP;
-
-- and the algorithmic decomposition strategy:
-  - `shark-level` parallelization,
-  - `dimension-level` parallelization,
-  - `rotation-level` parallelization,
-  - `hybrid` parallelization.
+This work therefore investigates the interaction between the programming model:
+- MPI,
+- OpenMP,
+- hybrid MPI+OpenMP;
+\
+and the algorithmic decomposition strategy:
+- `shark-level` parallelization,
+- `dimension-level` parallelization,
+- `rotation-level` parallelization,
+- `hybrid` parallelization.
 
 \
 
@@ -188,7 +187,7 @@ The comparative evaluation of these configurations enables a detailed analysis o
 
 == Shark-level Parallelism
 
-The shark population is the most natural decomposition unit in SSO. Each shark evolves independently across all stages; no inter-shark communication occurs during the update loop. Assigning disjoint subsets of sharks to different workers therefore yields an embarrassingly parallel workload. The only required global coordination is a single reduction at the end of the run to identify the globally best solution. The communication-to-computation ratio decreases proportionally as the population grows, making shark-level decomposition strongly scalable.
+The shark population is the most natural decomposition unit in SSO. Each shark evolves independently across all stages; no inter-shark communication occurs during the update loop. Assigning disjoint subsets of sharks to different workers therefore yields a straightforward parallel workload. The only required global coordination is a single reduction at the end of the run to identify the globally best solution. The communication-to-computation ratio decreases proportionally as the population grows, making shark-level decomposition strongly scalable.
 
 A practical design consideration is PRNG independence. Each shark requires its own random stream for velocity updates (R1, R2) and rotational probes (R3). In the MPI implementation, ranks use rank-offset seeds; in the OpenMP implementation, each thread carries a thread-local seed. This avoids both contention on a shared RNG and correlation artifacts between workers.
 
@@ -208,9 +207,9 @@ Dimension-level decomposition is beneficial only when the objective function eva
 
 == Rotation-level Parallelism
 
-The M rotational probes in the local search (Eq. 10) are mutually independent: each probe draws a scalar r3 uniformly at random and evaluates the objective at a scaled position around the current shark. The best probe is then selected with a simple maximum reduction over M values.
+The M rotational probes in the local search (Eq. 10 in the original paper) are mutually independent: each probe draws a scalar r3 uniformly at random and evaluates the objective at a scaled position around the current shark. The best probe is then selected with a simple maximum reduction over M values.
 
-Like shark-level decomposition, this loop is embarrassingly parallel. Unlike it, the available parallelism is capped by M rather than by the population: with M = 50 and 64 workers, each worker receives fewer than one probe on average, making the parallel overhead dominate. Rotation-level parallelism therefore becomes effective only when M is substantially larger than the number of workers, which corresponds to configurations where a fine-grained local search is required for solution quality. In our experiments we also tested an extended configuration (M = 50000) to expose the scaling behavior of this strategy under more favorable conditions.
+Like shark-level decomposition, this loop is highly parallel. Unlike it, the available parallelism is capped by M rather than by the population: with M = 50 and 64 workers, each worker receives fewer than one probe on average, making the parallel overhead dominate. Rotation-level parallelism therefore becomes effective only when M is substantially larger than the number of workers, which corresponds to configurations where a fine-grained local search is required for solution quality. In our experiments we also tested an extended configuration (M = 50000) to expose the scaling behavior of this strategy under more favorable conditions.
 
 = Implementation
 /*
@@ -219,7 +218,7 @@ Discuss pros and cons of each strategy / implementation. The report can include 
 - Hybrid parallelization is recommended though it is not mandatory
 */
 
-All code and scripts related to the project are available in the repository (see `README`). The implementation reuses a single algorithmic core, found in `sso/sso.c` and exposes multiple execution strategies through self-contained entrypoints in the `src` directory, e.g. `src/main_mpi_sharks.c`, `src/main_openmp_dim.c`, `src/main_hybrid_dim.c`, etc. Each entrypoint implements a specific parallelization strategy and programming model, while sharing the same underlying SSO logic.
+All code and scripts related to the project are available in the repository @parallel-sso-repo. The implementation reuses a single algorithmic core, found in `sso/sso.c` and exposes multiple execution strategies through self-contained entrypoints in the `src` directory, e.g. `src/main_mpi_sharks.c`, `src/main_openmp_dim.c`, `src/main_hybrid_dim.c`, etc. Each entrypoint implements a specific parallelization strategy and programming model, while sharing the same underlying SSO logic.
 
 The names of the entrypoints follow the convention `main_<model>_<strategy>.c`, where `<model>` is one of `mpi`, `openmp`, or `hybrid`, and `<strategy>` indicates the parallelization approach, i.e. `sharks`, `dim`, `rot`.
 
@@ -232,11 +231,41 @@ We implemented three MPI decompositions that map naturally to the SSO algorithm:
 - *Shark-level (population) decomposition*: each MPI rank owns a subset of the population and executes the full per-shark stages locally. At the end of the run ranks perform a reduction to determine the globally best solution. See `src/main_mpi_sharks.c`.
  This approach is straightforward and minimizes communication during the main loop, as each rank can independently update its sharks. This results in low communication overhead and good scalability when the population size is large enough to amortize the cost of setup and evaluation. However, it may suffer from load imbalance if the sharks are not uniformly distributed in terms of computational cost (e.g. some sharks may converge faster than others).
 
-- *Dimension-level decomposition*: the decision-variable vector is partitioned across MPI ranks; each rank computes updates for its set of dimensions and `MPI_Allgatherv` is used to reconstruct full position vectors when needed. See `src/main_mpi_dim.c`. 
+- *Dimension-level decomposition*: the decision-variable vector is partitioned across MPI ranks; each rank computes updates for its set of dimensions and `MPI_Allgatherv` is used to reconstruct full position vectors when needed. See `src/main_mpi_dim.c`.
  Here, the main loop is parallelized across dimensions, which can be beneficial when the cost of evaluating the objective function or computing gradients is dominated by per-dimension work (e.g. very high `nd`). However, this approach introduces higher communication overhead due to the need for frequent all-gather operations to share updated positions across ranks, and it requires more complex synchronization to ensure consistency of the shared state.
+
+#figure(
+  [
+    #codly(languages: codly-languages)
+    #show raw: set text(font: "JetBrains Mono", size: code-size)
+    ```C
+    // After updating its slice [start_dim, end_dim), every rank must rebuild
+    // the full position vector. Issued once per shark per stage (~10^6 times).
+    MPI_Allgatherv(shark_ptr->position + start_dim, end_dim - start_dim, MPI_DOUBLE,
+                   shark_ptr->position, scatter_sizes, scatter_starts,
+                   MPI_DOUBLE, MPI_COMM_WORLD);
+    ```
+  ],
+  caption: [Dimension-level MPI: the per-stage all-gather that reassembles the position vector. Its frequency is the main scaling bottleneck (Section 4).],
+) <code-mpi-dim>
 
 - *Rotation-level decomposition*: the inner rotational local-search probes are distributed across ranks and the best candidate is found with a reduction (e.g. `MPI_MAXLOC` or custom two-value reduction). See `src/main_mpi_rot.c`.
  Like the dimension-level approach, this strategy can be effective when the cost of the rotational search is significant (e.g. large `rotations`), but it also introduces communication overhead due to the need for reductions to find the best candidate across ranks. However, it minimizes redundant objective evaluations since each rank only evaluates a subset of the rotations, and the reduction combines results efficiently.
+
+#figure(
+  [
+    #codly(languages: codly-languages)
+    #show raw: set text(font: "JetBrains Mono", size: code-size)
+    ```C
+    // Each rank scans its probe slice into buf, then a single MAXLOC reduction
+    // keeps the best (value, r3) pair across all ranks in one collective.
+    struct { double best, best_r3; } buf = { OF(shark_ptr->position, cfg.nd, cfg.obj), 0.0 };
+    for (uint32_t m = start_rot; m < end_rot; ++m) { /* probe, update buf */ }
+    MPI_Allreduce(MPI_IN_PLACE, &buf, 1, MPI_2DOUBLE_PRECISION, MPI_MAXLOC, MPI_COMM_WORLD);
+    ```
+  ],
+  caption: [Rotation-level MPI: a two-value `MAXLOC` reduction selects the winning probe and its `r3` across ranks.],
+) <code-mpi-rot>
 
 \
 For all MPI variants we chose straightforward collective patterns (`Allreduce`, `Allgatherv`, `Bcast`) to keep the code readable and portable.
@@ -254,12 +283,48 @@ OpenMP variants exploit shared memory to avoid message passing; the code, like t
 
 - *Rotation-level (parallel rotation probes)*: The outer shark and stage loops remain serial; the inner rotation loop is parallelized with `#pragma omp for schedule(static)` inside a parallel region re-entered at every stage. A custom OpenMP reduction over a `RotationBest` struct (declared with `#pragma omp declare reduction`) finds the best (r3, value) pair across threads without a critical section. Each thread holds its own candidate buffer and per-thread seed (derived from `seed_base + tid << 16`) to avoid false sharing and PRNG contention. See `src/main_openmp_rot.c`.
 
+#figure(
+  [
+    #codly(languages: codly-languages)
+    #show raw: set text(font: "JetBrains Mono", size: code-size)
+    ```C
+    // Custom reduction: keep the probe with the highest objective value, along
+    // with its r3, so the rotation loop needs no critical section.
+    #pragma omp declare reduction(rot_best : struct RotationBest : \
+        omp_out = (omp_in.best > omp_out.best ? omp_in : omp_out)) \
+        initializer(omp_priv = (struct RotationBest){ -INFINITY, 0.0 })
+
+    #pragma omp for schedule(static) reduction(rot_best: rot_best)
+    for (uint32_t m = 0; m < cfg.rotations; ++m) { /* probe -> rot_best */ }
+    ```
+  ],
+  caption: [Rotation-level OpenMP: a user-defined reduction over the `(value, r3)` pair replaces an explicit critical section.],
+) <code-omp-rot>
+
 \
 OpenMP versions emphasize minimizing synchronization points and using per-thread storage for temporary arrays.
 
 == Hybrid MPI+OpenMP Implementations
 
-The hybrid implementation (`src/main_hybrid_sharks.c`) combines MPI shark-level decomposition with intra-rank OpenMP parallelism. Each MPI rank owns a contiguous block of the population and evolves its local sharks through all stages. Within each rank, OpenMP threads parallelize the rotational local search of each shark using the same `rot_best` reduction pattern as the OpenMP rotation variant. This two-level hierarchy maps naturally to multi-node, multi-core clusters: MPI handles coarse-grained distribution across nodes, while OpenMP exploits the shared memory within each node without message-passing overhead.
+The hybrid implementation (`src/main_hybrid_sharks.c`) combines MPI shark-level decomposition with intra-rank OpenMP parallelism, applying shark-level decomposition on both levels. Each MPI rank owns a subset of the population, and within a rank the OpenMP team splits that local block again with `#pragma omp for`, so each thread evolves its own sharks through all stages end-to-end. This two-level hierarchy maps naturally to multi-node, multi-core clusters: MPI handles coarse-grained distribution across nodes, while OpenMP exploits the shared memory within each node without message-passing overhead. Because both levels decompose the population, the only coordination is folding per-thread bests with a critical section, then a single inter-rank reduction.
+
+#figure(
+  [
+    #codly(languages: codly-languages)
+    #show raw: set text(font: "JetBrains Mono", size: code-size)
+    ```C
+    #pragma omp parallel num_threads(thread_num)
+    {
+        unsigned seed = seed_base + tid;      // seed_base already carries + rank
+        #pragma omp for schedule(static)      // split the rank's local sharks
+        for (size_t shark = rank; shark < cfg.np; shark += size) { /* stages */ }
+    }
+    // one collective folds per-rank bests into the global best
+    MPI_Allreduce(&best_min, &global_best, 1, MPI_DOUBLE, MPI_MIN, MPI_COMM_WORLD);
+    ```
+  ],
+  caption: [Hybrid MPI+OpenMP: MPI distributes the population across ranks, OpenMP splits each rank's share across threads, and a single reduction combines the results.],
+) <code-hybrid>
 
 Key design choices in the hybrid implementation:
 
@@ -273,7 +338,7 @@ The total worker count is $P times T$ where P is the number of MPI processes and
 
 == Notes and Supporting Scripts
 The algorithmic core (`sso_update_speed`, `sso_move_forward`, `sso_unrotational_search`, `sso_sharks_alloc`) is implemented in `src/sso/sso.c` and reused across every main entrypoint; this keeps the implementations comparable and reduces duplication. \
-Argument parsing and default parameters live in `src/sso/parse_args.c` and are extended in each `main_*` file to add parallel-specific options (threads, dim-procs, tsharks, etc.). \
+Argument parsing and default parameters live in `src/sso/parse_args.c` and are extended in each `main_*` file to add parallel-specific options (only number of threads in this case). \
 Benchmarking and plotting tools are under `benchmarks/` and `tests/` (examples: `tests/launch_tests.sh`, `benchmarks/plot_results.py`). These scripts were used to generate the figures reported in Section 4.
 
 

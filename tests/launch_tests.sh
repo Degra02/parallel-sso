@@ -1,5 +1,11 @@
 #!/bin/env bash
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=configs.sh
+source "$SCRIPT_DIR/configs.sh"
+
+CONFIG="common"
+
 while [[ $# -gt 0 ]]; do
   case $1 in
   -p | --procs)
@@ -29,6 +35,11 @@ while [[ $# -gt 0 ]]; do
     ;;
   -x | --placement)
     PLACE="$2"
+    shift
+    shift
+    ;;
+  -g | --config)
+    CONFIG="$2"
     shift
     shift
     ;;
@@ -85,13 +96,18 @@ if [ -z "$N_CPUS" ]; then
   N_CPUS=1
 fi
 
+# The strategy is the name of the directory holding the template
+# (sharks, dim, rot, hybrid). It selects the favorable parameter set.
+STRATEGY="$(basename "$(dirname "$EXEC")")"
+resolve_config "$CONFIG" "$STRATEGY"
+
 mapfile -t PROC_VALUES < <(expand_pow2_range "$N_PROC")
 mapfile -t THRD_VALUES < <(expand_pow2_range "$N_THRD")
 
 for procs in "${PROC_VALUES[@]}"; do
   for thrds in "${THRD_VALUES[@]}"; do
 
-    if [[ $(basename "$EXEC") == "hybrid_sharks" ]]; then
+    if [[ $(basename "$EXEC") == hybrid_sharks* ]]; then
       if ((procs == 64 && thrds == 64)); then
         continue
       fi
@@ -111,6 +127,11 @@ for procs in "${PROC_VALUES[@]}"; do
         -e "s/\${N_CPUS_PER_CHUNK}/96/g" \
         -e "s/\${N_MPI_PER_CHUNK}/$mpi_per_chunk/g" \
         -e "s/\${PLACE}/$PLACE/g" \
+        -e "s/\${WALLTIME}/$WALLTIME/g" \
+        -e "s/\${P}/$P/g" \
+        -e "s/\${D}/$D/g" \
+        -e "s/\${K}/$K/g" \
+        -e "s/\${M}/$M/g" \
         "$EXEC" | cat
     else
       sed \
@@ -119,6 +140,11 @@ for procs in "${PROC_VALUES[@]}"; do
         -e "s/\${JOB_NAME}/$JOB_NAME/g" \
         -e "s/\${N_CPUS}/$N_CPUS/g" \
         -e "s/\${PLACE}/$PLACE/g" \
+        -e "s/\${WALLTIME}/$WALLTIME/g" \
+        -e "s/\${P}/$P/g" \
+        -e "s/\${D}/$D/g" \
+        -e "s/\${K}/$K/g" \
+        -e "s/\${M}/$M/g" \
         "$EXEC" | cat
     fi
 

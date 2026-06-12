@@ -1,0 +1,12 @@
+#!/bin/env bash
+#PBS -l select=${N_CPUS}:ncpus=${N_PROC}:mpiprocs=${N_PROC}:mem=2gb
+#PBS -l place=${PLACE}:excl
+#PBS -l walltime=${WALLTIME}
+#PBS -q shortCPUQ
+
+# output & error files
+#PBS -N ${JOB_NAME}_${N_PROC}
+
+module load OpenMPI/4.1.6-GCC-13.2.0
+
+mpirun -n $(( ${N_CPUS} * ${N_PROC} )) ./parallel-sso/sso_mpi_dim -p ${P} -d ${D} -k ${K} -m ${M}
