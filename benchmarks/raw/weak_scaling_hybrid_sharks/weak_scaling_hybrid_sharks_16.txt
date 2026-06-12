@@ -1,0 +1,7 @@
+procs=16 threads=1 workers=16 population=16000 Total time: 208.230600 s
+procs=16 threads=2 workers=32 population=32000 Total time: 246.280537 s
+procs=16 threads=4 workers=64 population=64000 Total time: 243.526601 s
+procs=16 threads=8 workers=128 population=128000 Total time: 231.610043 s
+procs=16 threads=16 workers=256 population=256000 Total time: 263.364691 s
+procs=16 threads=32 workers=512 population=512000 Total time: 268.412195 s
+procs=16 threads=64 workers=1024 population=1024000 Total time: 280.117731 s

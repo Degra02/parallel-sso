@@ -1,0 +1,43 @@
+#!/usr/bin/env bash
+#PBS -q shortCPUQ
+#PBS -l walltime=00:10:00
+#PBS -l place=pack:excl
+#PBS -j oe
+
+set -euo pipefail
+
+: "${N_THREADS:?Submit with qsub -v N_THREADS=<threads>}"
+
+cd "${PBS_O_WORKDIR:?PBS_O_WORKDIR is not set}"
+module load OpenMPI/4.1.6-GCC-13.2.0
+
+population=$((1000 * N_THREADS))
+output_dir="benchmarks/raw/weak_scaling_sharks"
+output_file="${output_dir}/weak_scaling_openmp_sharks.txt"
+
+mkdir -p "${output_dir}"
+
+export OMP_NUM_THREADS="${N_THREADS}"
+export OMP_PLACES=cores
+export OMP_PROC_BIND=close
+export OMP_DYNAMIC=false
+
+result=$(
+  ./sso_openmp_sharks \
+    -p "${population}" \
+    -d 200 \
+    -k 1000 \
+    -m 50 \
+    -t "${N_THREADS}" |
+    sed -n '/threads=.*Total OpenMP time:/p'
+)
+
+if [[ -z "${result}" ]]; then
+  echo "Could not extract OpenMP execution time" >&2
+  exit 1
+fi
+
+(
+  flock -x 9
+  printf '%s\n' "${result}" >> "${output_file}"
+) 9>"${output_file}.lock"

@@ -1,0 +1,63 @@
+#!/usr/bin/env bash
+#PBS -l select=${N_CHUNKS}:ncpus=96:mpiprocs=${N_MPI_PER_CHUNK}:mem=2gb
+#PBS -l place=${PLACE}:excl
+#PBS -l walltime=0:10:00
+#PBS -q shortCPUQ
+#PBS -N ${JOB_NAME}_${N_PROC}_${N_THRD}
+
+set -euo pipefail
+
+module load OpenMPI/4.1.6-GCC-13.2.0
+
+cd "${PBS_O_WORKDIR:?PBS_O_WORKDIR is not set}"
+
+export OMP_NUM_THREADS=${N_THRD}
+export OMP_PLACES=cores
+export OMP_PROC_BIND=close
+
+raw_dir="benchmarks/raw/weak_scaling_hybrid_sharks"
+raw_file="${raw_dir}/weak_scaling_hybrid_sharks_${N_PROC}.txt"
+hostfile="${TMPDIR:-/tmp}/weak_scaling_hybrid_sharks_hosts_${PBS_JOBID}"
+
+mkdir -p "${raw_dir}"
+trap 'rm -f "${hostfile}"' EXIT
+
+sort -u "${PBS_NODEFILE}" |
+  awk '{print $1" slots=96"}' > "${hostfile}"
+
+output=$(
+  mpirun --mca pml ob1 --mca btl self,vader,tcp \
+    --hostfile "${hostfile}" -np ${N_PROC} \
+    --map-by ppr:${N_MPI_PER_CHUNK}:node:PE=${N_THRD} \
+    --bind-to core \
+    ./sso_hybrid_sharks \
+      -p ${POPULATION} \
+      -d 200 \
+      -k 1000 \
+      -m 50 \
+      -t ${N_THRD}
+)
+
+printf '%s\n' "${output}"
+
+time_seconds=$(
+  printf '%s\n' "${output}" |
+    sed -n 's/.*Total time: \([0-9][0-9.]*\) s.*/\1/p' |
+    tail -n 1
+)
+
+if [[ -z "${time_seconds}" ]]; then
+  echo "Could not extract execution time from program output" >&2
+  exit 1
+fi
+
+result="procs=${N_PROC} threads=${N_THRD} workers=${N_WORKERS} population=${POPULATION} Total time: ${time_seconds} s"
+
+if command -v flock >/dev/null 2>&1; then
+  (
+    flock -x 9
+    printf '%s\n' "${result}" >> "${raw_file}"
+  ) 9>"${raw_file}.lock"
+else
+  printf '%s\n' "${result}" >> "${raw_file}"
+fi

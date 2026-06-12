@@ -1,0 +1,38 @@
+#!/usr/bin/env bash
+#PBS -q shortCPUQ
+#PBS -l walltime=00:10:00
+#PBS -l place=scatter:excl
+#PBS -j oe
+
+set -euo pipefail
+
+: "${N_PROCS:?Submit with qsub -v N_PROCS=<processes>}"
+
+cd "${PBS_O_WORKDIR:?PBS_O_WORKDIR is not set}"
+module load OpenMPI/4.1.6-GCC-13.2.0
+
+population=$((1000 * N_PROCS))
+output_dir="benchmarks/raw/weak_scaling_sharks"
+output_file="${output_dir}/weak_scaling_mpi_sharks.txt"
+
+mkdir -p "${output_dir}"
+
+result=$(
+  mpirun -np "${N_PROCS}" \
+    ./sso_mpi_sharks \
+    -p "${population}" \
+    -d 200 \
+    -k 1000 \
+    -m 50 |
+    sed -n '/procs=.*Total time:/p'
+)
+
+if [[ -z "${result}" ]]; then
+  echo "Could not extract MPI execution time" >&2
+  exit 1
+fi
+
+(
+  flock -x 9
+  printf '%s\n' "${result}" >> "${output_file}"
+) 9>"${output_file}.lock"

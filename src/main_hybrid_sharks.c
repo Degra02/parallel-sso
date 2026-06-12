@@ -73,12 +73,17 @@ int main(int argc, char *argv[]) {
         return EXIT_FAILURE;
     }
 
+    size_t base = cfg.np / (size_t) size;
+    size_t rem = cfg.np % (size_t) size;
+    size_t local_np = base + (rank < (int) rem ? 1 : 0);
+    struct SSOConfig local_cfg = cfg;
+    local_cfg.np = local_np;
 
     // Domain bounds.
     struct Interval *domain = obj_alloc_domain_bounds(cfg.obj, cfg.nd);
 
-    // Alloc population sharks at random positions in the domain, with 0 speed.
-    struct Shark *sharks = sso_sharks_alloc(domain, &cfg);
+    // Each rank allocates only the sharks it processes.
+    struct Shark *local_sharks = sso_sharks_alloc(domain, &local_cfg);
 
     // Scratch array to avoid allocations in loops.
     double **scratch_pool = calloc_matrix(thread_num, cfg.nd,
@@ -90,7 +95,7 @@ int main(int argc, char *argv[]) {
                                            sizeof(double) * thread_num);
 
     int ret;
-    if (domain == NULL || sharks == NULL || scratch_pool == NULL
+    if (domain == NULL || local_sharks == NULL || scratch_pool == NULL
         || best_pos == NULL || best_pos_pool == NULL) {
         perror("Malloc error");
         ret = EXIT_FAILURE;
@@ -109,8 +114,8 @@ int main(int argc, char *argv[]) {
                 double *scratch = scratch_pool[tid];
 
                 #pragma omp for schedule(static)
-                for (size_t shark = rank; shark < cfg.np; shark += size) {
-                    struct Shark *shark_ptr = &sharks[shark];
+                for (size_t shark = 0; shark < local_cfg.np; ++shark) {
+                    struct Shark *shark_ptr = &local_sharks[shark];
 
                     // Perform k_max movement stages.
                     for (size_t k = 0; k < cfg.k_max; ++k) {
@@ -231,7 +236,7 @@ int main(int argc, char *argv[]) {
     free(best_pos);
     free_matrix(thread_num, scratch_pool);
     free_matrix(thread_num, best_pos_pool);
-    sso_sharks_free(sharks, cfg.np);
+    sso_sharks_free(local_sharks, local_cfg.np);
     free(domain);
     return ret;
 }

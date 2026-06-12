@@ -11,6 +11,16 @@ RESULT_PATTERN = re.compile(
     r"Total(?:\s+OpenMP)?\s+time:\s*(?P<time>[0-9]+(?:\.[0-9]+)?)\s*s"
 )
 
+WEAK_HYBRID_PATTERN = re.compile(
+    r"procs=(?P<procs>\d+)\s+"
+    r"threads=(?P<threads>\d+)\s+"
+    r"workers=(?P<workers>\d+)\s+"
+    r"population=(?P<population>\d+)\s+"
+    r"Total time:\s*(?P<time>[0-9]+(?:\.[0-9]+)?)\s*s"
+)
+
+WEAK_SCALING_VALUES = (1, 2, 4, 8, 16, 32, 64)
+
 
 def parse_entries(file_path: Path):
     text = file_path.read_text(encoding="utf-8")
@@ -154,6 +164,223 @@ def compute_hybrid_global_metrics(entries):
     return dict(sorted(metrics_by_procs.items()))
 
 
+def compute_weak_scaling_metrics(results, baseline_time):
+    metrics = []
+
+    for parallelism, time_seconds in results:
+        efficiency = baseline_time / time_seconds
+        metrics.append(
+            {
+                "parallelism": parallelism,
+                "time": time_seconds,
+                "speedup": parallelism * efficiency,
+                "efficiency": efficiency,
+            }
+        )
+
+    return metrics
+
+
+def validate_weak_scaling_values(results, label):
+    values = tuple(parallelism for parallelism, _ in results)
+    if values != WEAK_SCALING_VALUES:
+        raise ValueError(
+            f"{label} must contain exactly {WEAK_SCALING_VALUES}, found {values}"
+        )
+
+
+def parse_weak_hybrid_entries(raw_dir: Path):
+    entries = []
+    seen = set()
+
+    for file_path in sorted(raw_dir.glob("weak_scaling_hybrid_sharks_*.txt")):
+        for line in file_path.read_text(encoding="utf-8").splitlines():
+            match = WEAK_HYBRID_PATTERN.fullmatch(line.strip())
+            if match is None:
+                continue
+
+            entry = {
+                "procs": int(match.group("procs")),
+                "threads": int(match.group("threads")),
+                "workers": int(match.group("workers")),
+                "population": int(match.group("population")),
+                "time": float(match.group("time")),
+            }
+            key = (entry["procs"], entry["threads"])
+
+            if key in seen:
+                raise ValueError(f"Duplicate hybrid weak-scaling result for {key}")
+            if entry["workers"] != entry["procs"] * entry["threads"]:
+                raise ValueError(f"Invalid worker count in {file_path}: {line!r}")
+            if entry["population"] != 1000 * entry["workers"]:
+                raise ValueError(f"Invalid population in {file_path}: {line!r}")
+
+            seen.add(key)
+            entries.append(entry)
+
+    expected = {
+        (procs, threads)
+        for procs in WEAK_SCALING_VALUES
+        for threads in WEAK_SCALING_VALUES
+        if (procs, threads) != (64, 64)
+    }
+    missing = sorted(expected - seen)
+    unexpected = sorted(seen - expected)
+
+    if missing:
+        print(f"Warning: missing hybrid weak-scaling points: {missing}")
+    if unexpected:
+        raise ValueError(f"Unexpected hybrid weak-scaling points: {unexpected}")
+    if (1, 1) not in seen:
+        raise ValueError("Hybrid weak scaling requires the (1 process, 1 thread) baseline")
+
+    return sorted(entries, key=lambda row: (row["procs"], row["workers"]))
+
+
+def plot_weak_scaling_series(
+    series,
+    metric_key,
+    y_label,
+    title,
+    output_path,
+    x_label,
+    ideal=None,
+    y_limits=None,
+):
+    plt.figure(figsize=(10, 5.5))
+    all_x = sorted(
+        {
+            row["parallelism"]
+            for _, metrics in series
+            for row in metrics
+        }
+    )
+
+    for label, metrics in series:
+        plt.plot(
+            [row["parallelism"] for row in metrics],
+            [row[metric_key] for row in metrics],
+            marker="o",
+            linewidth=1.5,
+            markersize=4,
+            label=label,
+        )
+
+    if ideal == "constant":
+        plt.axhline(1.0, color="red", linestyle="--", linewidth=1, label="Ideal")
+    elif ideal == "linear":
+        plt.plot(all_x, all_x, color="red", linestyle="--", linewidth=1, label="Ideal")
+
+    plt.xscale("log", base=2)
+    plt.xticks(all_x, [str(value) for value in all_x])
+    plt.xlabel(x_label)
+    plt.ylabel(y_label)
+    plt.title(title)
+    plt.grid(True, alpha=0.3)
+    plt.legend()
+
+    if y_limits is not None:
+        plt.ylim(y_limits)
+
+    plt.tight_layout()
+    plt.savefig(output_path, dpi=300)
+    plt.close()
+
+
+def generate_weak_scaling_sharks_plots(raw_dir: Path, plots_dir: Path):
+    weak_dir = raw_dir / "weak_scaling_sharks"
+    hybrid_dir = raw_dir / "weak_scaling_hybrid_sharks"
+    output_dir = plots_dir / "weak_scaling_sharks"
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    for old_plot in output_dir.glob("*.png"):
+        old_plot.unlink()
+
+    single_variants = (
+        (
+            "openmp",
+            weak_dir / "weak_scaling_openmp_sharks.txt",
+            "threads",
+            "OpenMP",
+        ),
+        (
+            "mpi",
+            weak_dir / "weak_scaling_mpi_sharks.txt",
+            "procs",
+            "MPI",
+        ),
+    )
+
+    for slug, file_path, axis, label in single_variants:
+        entries = parse_entries(file_path)
+        results = group_by_axis(entries, axis)
+        validate_weak_scaling_values(results, label)
+        metrics = compute_weak_scaling_metrics(results, results[0][1])
+        series = [(label, metrics)]
+        x_label = "Number of threads" if axis == "threads" else "Number of processes"
+
+        plot_weak_scaling_series(
+            series,
+            "time",
+            "Execution time (seconds)",
+            f"Weak scaling - {label} sharks: Execution time",
+            output_dir / f"weak_scaling_{slug}_sharks_time.png",
+            x_label,
+        )
+        plot_weak_scaling_series(
+            series,
+            "speedup",
+            "Scaled speedup",
+            f"Weak scaling - {label} sharks: Scaled speedup",
+            output_dir / f"weak_scaling_{slug}_sharks_speedup.png",
+            x_label,
+            ideal="linear",
+        )
+        plot_weak_scaling_series(
+            series,
+            "efficiency",
+            "Weak-scaling efficiency",
+            f"Weak scaling - {label} sharks: Efficiency",
+            output_dir / f"weak_scaling_{slug}_sharks_efficiency.png",
+            x_label,
+            ideal="constant",
+            y_limits=(0, 1.05),
+        )
+
+    hybrid_entries = parse_weak_hybrid_entries(hybrid_dir)
+    baseline_time = next(
+        row["time"]
+        for row in hybrid_entries
+        if row["procs"] == 1 and row["threads"] == 1
+    )
+    hybrid_series = []
+
+    for procs in WEAK_SCALING_VALUES:
+        rows = [row for row in hybrid_entries if row["procs"] == procs]
+        results = [(row["workers"], row["time"]) for row in rows]
+        metrics = compute_weak_scaling_metrics(results, baseline_time)
+        process_label = "process" if procs == 1 else "processes"
+        hybrid_series.append((f"{procs} {process_label}", metrics))
+
+    hybrid_specs = (
+        ("time", "Execution time (seconds)", "time", None, None),
+        ("speedup", "Scaled speedup", "speedup", "linear", None),
+        ("efficiency", "Weak-scaling efficiency", "efficiency", "constant", (0, 1.05)),
+    )
+
+    for metric_key, y_label, suffix, ideal, y_limits in hybrid_specs:
+        plot_weak_scaling_series(
+            hybrid_series,
+            metric_key,
+            y_label,
+            f"Weak scaling - Hybrid sharks: {y_label}",
+            output_dir / f"weak_scaling_hybrid_sharks_{suffix}.png",
+            "Total processes x threads",
+            ideal=ideal,
+            y_limits=y_limits,
+        )
+
+
 def plot_metric(metrics, x_label, y_key, y_label, title, output_path, y_limits=None):
     workers = [row["workers"] for row in metrics]
     values = [row[y_key] for row in metrics]
@@ -190,26 +417,7 @@ def label_for_file(file_path: Path):
 
     if file_path.name in name_map:
         return name_map[file_path.name]
-    elif file_path.parent.name in {"hybrid_sharks", "hybrid_hybrid"}:
-        return f"{file_path.parent.name.replace('_', ' ').title()} ({file_path.stem.split('_')[-1]} procs)"
-        
     return file_path.stem
-
-    # if file_path.name == "mpi_dim.txt":
-    #     return "MPI (dimensions)"
-    # if file_path.name == "openmp_dim.txt":
-    #     return "OpenMP (dimensions)"
-    # if file_path.name == "mpi_sharks.txt":
-    #     return "MPI (sharks)"
-    # if file_path.name == "openmp_sharks.txt":
-    #     return "OpenMP (sharks)"
-    # if file_path.name == "mpi_rot.txt":
-    #     return "MPI (rotations)"
-    # if file_path.name == "openmp_rot.txt":
-    #     return "OpenMP (rotations)"
-    # if file_path.parent.name in {"hybrid_sharks", "hybrid_hybrid"}:
-    #     return f"{file_path.parent.name.replace('_', ' ').title()} ({file_path.stem.split('_')[-1]} procs)"
-    # return file_path.stem
 
 
 def family_for_file(file_path: Path):
@@ -221,8 +429,6 @@ def family_for_file(file_path: Path):
         return "rot"
     if file_path.name in {"mpi_rot_huge.txt", "openmp_rot_huge.txt", "mpi_sharks_huge.txt", "openmp_sharks_huge.txt"}:
         return "rot_huge"
-    if file_path.parent.name in {"hybrid_sharks", "hybrid_hybrid"}:
-        return file_path.parent.name
     return None
 
 
@@ -233,8 +439,6 @@ def x_label_for_axis(axis: str):
 def x_label_for_family(family_name: str, series_data):
     axes = {axis for _, axis, _ in series_data}
 
-    if family_name.startswith("hybrid"):
-        return "Number of threads"
     if axes == {"threads"}:
         return "Number of threads"
     if axes == {"procs"}:
@@ -247,8 +451,6 @@ def generate_family_plots(family_name: str, series_data, output_dir: Path):
         "mpi_dim": "MPI dimensions",
         "dim": "Dimensions",
         "sharks": "Sharks",
-        "hybrid_sharks": "Hybrid sharks",
-        "hybrid_hybrid": "Hybrid hybrid",
         "rot": "Rotations",
         "rot_huge": "Rotations (huge)",
     }
@@ -384,6 +586,7 @@ def main():
         generate_family_plots(family_name, series_data, output_dir)
 
     generate_hybrid_global_plots(raw_dir, output_dir)
+    generate_weak_scaling_sharks_plots(raw_dir, output_dir)
 
 
 if __name__ == "__main__":
