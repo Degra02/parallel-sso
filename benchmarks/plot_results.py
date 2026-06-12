@@ -20,6 +20,11 @@ WEAK_HYBRID_PATTERN = re.compile(
 )
 
 WEAK_SCALING_VALUES = (1, 2, 4, 8, 16, 32, 64)
+IDEAL_LINE_STYLE = {
+    "color": "red",
+    "linestyle": "--",
+    "linewidth": 1.2,
+}
 
 
 def parse_entries(file_path: Path):
@@ -181,6 +186,54 @@ def compute_weak_scaling_metrics(results, baseline_time):
     return metrics
 
 
+def add_ideal_line(kind, x_values, baseline_time=None):
+    if kind is None:
+        return []
+
+    if kind in {"strong_speedup", "weak_speedup"}:
+        label = (
+            "Ideal linear speedup (S = N)"
+            if kind == "strong_speedup"
+            else "Ideal scaled speedup (S = N)"
+        )
+        plt.plot(x_values, x_values, label=label, **IDEAL_LINE_STYLE)
+        return list(x_values)
+
+    if kind in {"strong_efficiency", "weak_efficiency"}:
+        label = (
+            "Ideal efficiency (E = 1)"
+            if kind == "strong_efficiency"
+            else "Ideal weak efficiency (E = 1)"
+        )
+        plt.axhline(1.0, label=label, **IDEAL_LINE_STYLE)
+        return [1.0]
+
+    if kind == "weak_time":
+        if baseline_time is None:
+            raise ValueError("Weak-scaling time ideal requires a baseline time")
+        plt.axhline(
+            baseline_time,
+            label="Ideal weak scaling (T = T1)",
+            **IDEAL_LINE_STYLE,
+        )
+        return [baseline_time]
+
+    raise ValueError(f"Unknown ideal line kind: {kind}")
+
+
+def apply_y_limits(y_values, y_limits=None):
+    if y_limits is None:
+        return
+
+    lower, upper = y_limits
+    finite_values = [value for value in y_values if value is not None]
+
+    if upper is not None and finite_values:
+        upper = max(upper, max(finite_values) * 1.08)
+
+    plt.ylim(lower, upper)
+
+
 def validate_weak_scaling_values(results, label):
     values = tuple(parallelism for parallelism, _ in results)
     if values != WEAK_SCALING_VALUES:
@@ -245,6 +298,7 @@ def plot_weak_scaling_series(
     output_path,
     x_label,
     ideal=None,
+    ideal_baseline_time=None,
     y_limits=None,
 ):
     plt.figure(figsize=(10, 5.5))
@@ -256,20 +310,21 @@ def plot_weak_scaling_series(
         }
     )
 
+    all_y = []
+
     for label, metrics in series:
+        y_values = [row[metric_key] for row in metrics]
+        all_y.extend(y_values)
         plt.plot(
             [row["parallelism"] for row in metrics],
-            [row[metric_key] for row in metrics],
+            y_values,
             marker="o",
             linewidth=1.5,
             markersize=4,
             label=label,
         )
 
-    if ideal == "constant":
-        plt.axhline(1.0, color="red", linestyle="--", linewidth=1, label="Ideal")
-    elif ideal == "linear":
-        plt.plot(all_x, all_x, color="red", linestyle="--", linewidth=1, label="Ideal")
+    all_y.extend(add_ideal_line(ideal, all_x, ideal_baseline_time))
 
     plt.xscale("log", base=2)
     plt.xticks(all_x, [str(value) for value in all_x])
@@ -279,8 +334,7 @@ def plot_weak_scaling_series(
     plt.grid(True, alpha=0.3)
     plt.legend()
 
-    if y_limits is not None:
-        plt.ylim(y_limits)
+    apply_y_limits(all_y, y_limits)
 
     plt.tight_layout()
     plt.savefig(output_path, dpi=300)
@@ -326,6 +380,8 @@ def generate_weak_scaling_sharks_plots(raw_dir: Path, plots_dir: Path):
             f"Weak scaling - {label} sharks: Execution time",
             output_dir / f"weak_scaling_{slug}_sharks_time.png",
             x_label,
+            ideal="weak_time",
+            ideal_baseline_time=metrics[0]["time"],
         )
         plot_weak_scaling_series(
             series,
@@ -334,7 +390,7 @@ def generate_weak_scaling_sharks_plots(raw_dir: Path, plots_dir: Path):
             f"Weak scaling - {label} sharks: Scaled speedup",
             output_dir / f"weak_scaling_{slug}_sharks_speedup.png",
             x_label,
-            ideal="linear",
+            ideal="weak_speedup",
         )
         plot_weak_scaling_series(
             series,
@@ -343,7 +399,7 @@ def generate_weak_scaling_sharks_plots(raw_dir: Path, plots_dir: Path):
             f"Weak scaling - {label} sharks: Efficiency",
             output_dir / f"weak_scaling_{slug}_sharks_efficiency.png",
             x_label,
-            ideal="constant",
+            ideal="weak_efficiency",
             y_limits=(0, 1.05),
         )
 
@@ -363,9 +419,9 @@ def generate_weak_scaling_sharks_plots(raw_dir: Path, plots_dir: Path):
         hybrid_series.append((f"{procs} {process_label}", metrics))
 
     hybrid_specs = (
-        ("time", "Execution time (seconds)", "time", None, None),
-        ("speedup", "Scaled speedup", "speedup", "linear", None),
-        ("efficiency", "Weak-scaling efficiency", "efficiency", "constant", (0, 1.05)),
+        ("time", "Execution time (seconds)", "time", "weak_time", None),
+        ("speedup", "Scaled speedup", "speedup", "weak_speedup", None),
+        ("efficiency", "Weak-scaling efficiency", "efficiency", "weak_efficiency", (0, 1.05)),
     )
 
     for metric_key, y_label, suffix, ideal, y_limits in hybrid_specs:
@@ -377,6 +433,7 @@ def generate_weak_scaling_sharks_plots(raw_dir: Path, plots_dir: Path):
             output_dir / f"weak_scaling_hybrid_sharks_{suffix}.png",
             "Total processes x threads",
             ideal=ideal,
+            ideal_baseline_time=baseline_time,
             y_limits=y_limits,
         )
 
@@ -463,12 +520,20 @@ def generate_family_plots(family_name: str, series_data, output_dir: Path):
         plt.figure(figsize=(10, 5.5))
 
         x_label = x_label_for_family(family_name, series_data)
+        all_y = []
+
         for label, axis, metrics in series_data:
             x_values = [row["workers"] for row in metrics]
             y_values = [row[metric_key] for row in metrics]
+            all_y.extend(y_values)
             plt.plot(x_values, y_values, marker="o", linewidth=1.5, markersize=4, label=label)
 
         all_x = sorted({row["workers"] for _, _, metrics in series_data for row in metrics})
+        if metric_key == "speedup":
+            all_y.extend(add_ideal_line("strong_speedup", all_x))
+        elif metric_key == "efficiency":
+            all_y.extend(add_ideal_line("strong_efficiency", all_x))
+
         plt.xscale("log", base=2)
         plt.xticks(all_x, [str(v) for v in all_x])
         plt.xlabel(x_label)
@@ -478,7 +543,7 @@ def generate_family_plots(family_name: str, series_data, output_dir: Path):
         plt.legend()
 
         if metric_key == "efficiency":
-            plt.ylim(0, 1.05)
+            apply_y_limits(all_y, (0, 1.05))
 
         plt.tight_layout()
         plt.savefig(output_dir / f"{family_name.lower()}_{suffix}.png", dpi=300)
@@ -528,9 +593,12 @@ def generate_hybrid_global_plots(raw_dir: Path, output_dir: Path):
         plt.figure(figsize=(10, 5.5))
         all_workers = sorted({row["workers"] for metrics in metrics_by_procs.values() for row in metrics})
 
+        all_y = []
+
         for procs, metrics in metrics_by_procs.items():
             x_values = [row["workers"] for row in metrics]
             y_values = [row[metric_key] for row in metrics]
+            all_y.extend(y_values)
             plt.plot(
                 x_values,
                 y_values,
@@ -540,6 +608,11 @@ def generate_hybrid_global_plots(raw_dir: Path, output_dir: Path):
                 label=f"Hybrid Sharks ({procs} procs)",
             )
 
+        if metric_key == "speedup":
+            all_y.extend(add_ideal_line("strong_speedup", all_workers))
+        elif metric_key == "efficiency":
+            all_y.extend(add_ideal_line("strong_efficiency", all_workers))
+
         plt.xscale("log", base=2)
         plt.xticks(all_workers, [str(worker) for worker in all_workers])
         plt.xlabel("Number of workers (processes * threads, log2 scale)")
@@ -548,8 +621,7 @@ def generate_hybrid_global_plots(raw_dir: Path, output_dir: Path):
         plt.grid(True, alpha=0.3)
         plt.legend()
 
-        if y_limits is not None:
-            plt.ylim(y_limits)
+        apply_y_limits(all_y, y_limits)
 
         plt.tight_layout()
         plt.savefig(output_dir / f"hybrid_sharks_global_{suffix}.png", dpi=300)
