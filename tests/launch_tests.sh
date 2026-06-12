@@ -106,6 +106,9 @@ mapfile -t THRD_VALUES < <(expand_pow2_range "$N_THRD")
 
 for procs in "${PROC_VALUES[@]}"; do
   for thrds in "${THRD_VALUES[@]}"; do
+    while [[ $(qstat -u $USER | wc -l) -ge 30 ]]; do
+      sleep 10
+    done
 
     if [[ $(basename "$EXEC") == hybrid_sharks* ]]; then
       if ((procs == 64 && thrds == 64)); then

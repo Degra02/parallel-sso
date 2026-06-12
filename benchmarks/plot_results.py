@@ -312,10 +312,12 @@ def plot_weak_scaling_series(
 
     all_y = []
 
+    weak_time_baselines = []
+
     for label, metrics in series:
         y_values = [row[metric_key] for row in metrics]
         all_y.extend(y_values)
-        plt.plot(
+        line, = plt.plot(
             [row["parallelism"] for row in metrics],
             y_values,
             marker="o",
@@ -324,7 +326,21 @@ def plot_weak_scaling_series(
             label=label,
         )
 
-    all_y.extend(add_ideal_line(ideal, all_x, ideal_baseline_time))
+        if ideal == "weak_time_by_series":
+            weak_time_baselines.append((label, y_values[0], line.get_color()))
+
+    if ideal == "weak_time_by_series":
+        for label, baseline_time, color in weak_time_baselines:
+            plt.axhline(
+                baseline_time,
+                color=color,
+                linestyle="--",
+                linewidth=1.2,
+                label=f"Ideal {label} (T = T1)",
+            )
+            all_y.append(baseline_time)
+    else:
+        all_y.extend(add_ideal_line(ideal, all_x, ideal_baseline_time))
 
     plt.xscale("log", base=2)
     plt.xticks(all_x, [str(value) for value in all_x])
@@ -364,44 +380,48 @@ def generate_weak_scaling_sharks_plots(raw_dir: Path, plots_dir: Path):
             "MPI",
         ),
     )
+    single_metrics = {}
 
     for slug, file_path, axis, label in single_variants:
         entries = parse_entries(file_path)
         results = group_by_axis(entries, axis)
         validate_weak_scaling_values(results, label)
         metrics = compute_weak_scaling_metrics(results, results[0][1])
-        series = [(label, metrics)]
-        x_label = "Number of threads" if axis == "threads" else "Number of processes"
+        single_metrics[slug] = metrics
+    openmp_mpi_series = [
+        ("OpenMP threads", single_metrics["openmp"]),
+        ("MPI processes", single_metrics["mpi"]),
+    ]
+    openmp_mpi_x_label = "Number of processes/threads"
 
-        plot_weak_scaling_series(
-            series,
-            "time",
-            "Execution time (seconds)",
-            f"Weak scaling - {label} sharks: Execution time",
-            output_dir / f"weak_scaling_{slug}_sharks_time.png",
-            x_label,
-            ideal="weak_time",
-            ideal_baseline_time=metrics[0]["time"],
-        )
-        plot_weak_scaling_series(
-            series,
-            "speedup",
-            "Scaled speedup",
-            f"Weak scaling - {label} sharks: Scaled speedup",
-            output_dir / f"weak_scaling_{slug}_sharks_speedup.png",
-            x_label,
-            ideal="weak_speedup",
-        )
-        plot_weak_scaling_series(
-            series,
-            "efficiency",
-            "Weak-scaling efficiency",
-            f"Weak scaling - {label} sharks: Efficiency",
-            output_dir / f"weak_scaling_{slug}_sharks_efficiency.png",
-            x_label,
-            ideal="weak_efficiency",
-            y_limits=(0, 1.05),
-        )
+    plot_weak_scaling_series(
+        openmp_mpi_series,
+        "time",
+        "Execution time (seconds)",
+        "Weak scaling - OpenMP vs MPI sharks: Execution time",
+        output_dir / "weak_scaling_openmp_mpi_sharks_time.png",
+        openmp_mpi_x_label,
+        ideal="weak_time_by_series",
+    )
+    plot_weak_scaling_series(
+        openmp_mpi_series,
+        "speedup",
+        "Scaled speedup",
+        "Weak scaling - OpenMP vs MPI sharks: Scaled speedup",
+        output_dir / "weak_scaling_openmp_mpi_sharks_speedup.png",
+        openmp_mpi_x_label,
+        ideal="weak_speedup",
+    )
+    plot_weak_scaling_series(
+        openmp_mpi_series,
+        "efficiency",
+        "Weak-scaling efficiency",
+        "Weak scaling - OpenMP vs MPI sharks: Efficiency",
+        output_dir / "weak_scaling_openmp_mpi_sharks_efficiency.png",
+        openmp_mpi_x_label,
+        ideal="weak_efficiency",
+        y_limits=(0, 1.05),
+    )
 
     hybrid_entries = parse_weak_hybrid_entries(hybrid_dir)
     baseline_time = next(

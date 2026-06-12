@@ -1,0 +1,46 @@
+procs=1 threads=1 Total time: 182.602233 s
+procs=1 threads=2 Total time: 98.011685 s
+procs=1 threads=4 Total time: 50.582444 s
+procs=1 threads=8 Total time: 27.120112 s
+procs=1 threads=16 Total time: 14.540003 s
+procs=1 threads=32 Total time: 8.958860 s
+procs=1 threads=64 Total time: 4.357633 s
+procs=2 threads=1 Total time: 93.865353 s
+procs=2 threads=2 Total time: 49.658473 s
+procs=2 threads=4 Total time: 26.415633 s
+procs=2 threads=8 Total time: 13.708679 s
+procs=2 threads=16 Total time: 7.837564 s
+procs=2 threads=32 Total time: 4.499647 s
+procs=2 threads=64 Total time: 2.412620 s
+procs=4 threads=1 Total time: 48.448165 s
+procs=4 threads=2 Total time: 25.896190 s
+procs=4 threads=4 Total time: 13.317207 s
+procs=4 threads=8 Total time: 7.650209 s
+procs=4 threads=16 Total time: 3.914049 s
+procs=4 threads=32 Total time: 2.321193 s
+procs=4 threads=64 Total time: 1.222176 s
+procs=8 threads=1 Total time: 27.119981 s
+procs=8 threads=2 Total time: 12.540244 s
+procs=8 threads=4 Total time: 7.503252 s
+procs=8 threads=8 Total time: 3.837241 s
+procs=8 threads=16 Total time: 2.116512 s
+procs=8 threads=32 Total time: 1.185235 s
+procs=8 threads=64 Total time: 0.737192 s
+procs=16 threads=1 Total time: 12.453990 s
+procs=16 threads=2 Total time: 7.381722 s
+procs=16 threads=4 Total time: 3.811322 s
+procs=16 threads=8 Total time: 1.941560 s
+procs=16 threads=16 Total time: 1.115612 s
+procs=16 threads=32 Total time: 0.633246 s
+
+procs=32 threads=1 Total time: 7.899205 s
+procs=32 threads=2 Total time: 3.773142 s
+procs=32 threads=4 Total time: 1.932092 s
+procs=32 threads=8 Total time: 0.977560 s
+procs=32 threads=16 Total time: 0.627086 s
+
+
+procs=64 threads=1 Total time: 4.004708 s
+procs=64 threads=2 Total time: 1.925808 s
+procs=64 threads=4 Total time: 0.988059 s
+procs=64 threads=8 Total time: 0.506793 s
