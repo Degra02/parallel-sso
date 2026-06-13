@@ -1,6 +1,6 @@
-procs=64 threads=1 workers=64 population=64000 Total time: 260.998299 s
-procs=64 threads=2 workers=128 population=128000 Total time: 226.708116 s
-procs=64 threads=4 workers=256 population=256000 Total time: 254.849900 s
-procs=64 threads=8 workers=512 population=512000 Total time: 253.434662 s
-procs=64 threads=16 workers=1024 population=1024000 Total time: 271.241798 s
+procs=64 threads=1 workers=64 population=64000 Total time: 250.888388 s
+procs=64 threads=2 workers=128 population=128000 Total time: 251.853950 s
+procs=64 threads=4 workers=256 population=256000 Total time: 251.618027 s
+procs=64 threads=8 workers=512 population=512000 Total time: 243.652955 s
+procs=64 threads=16 workers=1024 population=1024000 Total time: 266.207805 s
 procs=64 threads=32 workers=2048 population=2048000 Total time: 269.893541 s

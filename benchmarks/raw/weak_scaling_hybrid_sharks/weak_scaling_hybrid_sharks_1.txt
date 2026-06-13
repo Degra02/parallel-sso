@@ -1,7 +1,7 @@
-procs=1 threads=1 workers=1 population=1000 Total time: 124.146878 s
-procs=1 threads=4 workers=4 population=4000 Total time: 126.480861 s
-procs=1 threads=2 workers=2 population=2000 Total time: 185.370267 s
-procs=1 threads=8 workers=8 population=8000 Total time: 130.004073 s
-procs=1 threads=16 workers=16 population=16000 Total time: 200.736939 s
-procs=1 threads=32 workers=32 population=32000 Total time: 181.413495 s
-procs=1 threads=64 workers=64 population=64000 Total time: 255.357794 s
+procs=1 threads=1 workers=1 population=1000 Total time: 176.082175 s
+procs=1 threads=2 workers=2 population=2000 Total time: 186.606649 s
+procs=1 threads=4 workers=4 population=4000 Total time: 192.182074 s
+procs=1 threads=8 workers=8 population=8000 Total time: 199.498264 s
+procs=1 threads=16 workers=16 population=16000 Total time: 201.554504 s
+procs=1 threads=32 workers=32 population=32000 Total time: 258.165477 s
+procs=1 threads=64 workers=64 population=64000 Total time: 250.639868 s
