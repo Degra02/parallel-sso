@@ -1,6 +1,6 @@
 procs=8 threads=1 workers=8 population=8000 Total time: 124.890660 s
 procs=8 threads=2 workers=16 population=16000 Total time: 196.288723 s
-procs=8 threads=8 workers=64 population=64000 Total time: 181.631645 s
+procs=8 threads=8 workers=64 population=64000 Total time: 247.281780 s
 procs=8 threads=4 workers=32 population=32000 Total time: 251.636719 s
 procs=8 threads=16 workers=128 population=128000 Total time: 241.410087 s
 procs=8 threads=32 workers=256 population=256000 Total time: 272.046639 s
