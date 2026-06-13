@@ -28,11 +28,11 @@ FAV_sharks_WALLTIME=0:10:00
 
 # --- Favorable: dimension-level (big nd, few sharks; M small since the ---
 # --- rotation search is serial in the dim variant) ---
-FAV_dim_P=100
-FAV_dim_D=4000
-FAV_dim_K=1000
-FAV_dim_M=10
-FAV_dim_WALLTIME=0:15:00
+FAV_dim_P=5
+FAV_dim_D=100000000
+FAV_dim_K=5
+FAV_dim_M=0
+FAV_dim_WALLTIME=0:20:00
 
 # --- Favorable: rotation-level (big M, few sharks) ---
 FAV_rot_P=16
