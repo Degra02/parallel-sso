@@ -26,6 +26,23 @@ IDEAL_LINE_STYLE = {
     "linewidth": 1.2,
 }
 
+LOG2_SCALE = "log\u2082 scale"
+COMBINED_WORKER_X_LABEL = f"Number of processes/threads ({LOG2_SCALE})"
+HYBRID_WORKER_X_LABEL = f"Number of workers, N = P \u00d7 T ({LOG2_SCALE})"
+
+STRONG_SPEEDUP_Y_LABEL = "Speedup, S = T\u2081 / T\u2099"
+STRONG_EFFICIENCY_Y_LABEL = "Efficiency, E = S / N"
+HYBRID_STRONG_SPEEDUP_Y_LABEL = "Speedup, S = T(1,1) / T(P,T)"
+HYBRID_STRONG_EFFICIENCY_Y_LABEL = "Efficiency, E = S / (P \u00d7 T)"
+WEAK_SPEEDUP_Y_LABEL = "Scaled speedup, S = N \u00d7 T\u2081 / T\u2099"
+WEAK_EFFICIENCY_Y_LABEL = "Weak-scaling efficiency, E = T\u2081 / T\u2099"
+HYBRID_WEAK_SPEEDUP_Y_LABEL = (
+    "Scaled speedup, S = (P \u00d7 T) \u00d7 T(1,1) / T(P,T)"
+)
+HYBRID_WEAK_EFFICIENCY_Y_LABEL = (
+    "Weak-scaling efficiency, E = T(1,1) / T(P,T)"
+)
+
 
 def parse_entries(file_path: Path):
     text = file_path.read_text(encoding="utf-8")
@@ -346,13 +363,15 @@ def plot_weak_scaling_series(
     plt.xscale("log", base=2)
     plt.xticks(all_x, [str(value) for value in all_x])
     plt.xlabel(x_label)
+    if log_y:
+        y_label = f"{y_label} ({LOG2_SCALE})"
     plt.ylabel(y_label)
     plt.title(title)
     plt.grid(True, alpha=0.3)
     plt.legend()
 
     if log_y:
-        plt.yscale("log")
+        plt.yscale("log", base=2)
     apply_y_limits(all_y, y_limits)
 
     plt.tight_layout()
@@ -395,34 +414,31 @@ def generate_weak_scaling_sharks_plots(raw_dir: Path, plots_dir: Path):
         ("OpenMP threads", single_metrics["openmp"]),
         ("MPI processes", single_metrics["mpi"]),
     ]
-    openmp_mpi_x_label = "Number of processes/threads"
-
     plot_weak_scaling_series(
         openmp_mpi_series,
         "time",
         "Execution time (seconds)",
-        "Weak scaling - OpenMP vs MPI sharks: Execution time",
+        "OpenMP vs MPI Sharks - Execution Time",
         output_dir / "weak_scaling_openmp_mpi_sharks_time.png",
-        openmp_mpi_x_label,
+        COMBINED_WORKER_X_LABEL,
         ideal="weak_time_by_series",
     )
     plot_weak_scaling_series(
         openmp_mpi_series,
         "speedup",
-        "Scaled speedup",
-        "Weak scaling - OpenMP vs MPI sharks: Scaled speedup",
+        WEAK_SPEEDUP_Y_LABEL,
+        "OpenMP vs MPI Sharks - Scaled Speedup",
         output_dir / "weak_scaling_openmp_mpi_sharks_speedup.png",
-        openmp_mpi_x_label,
+        COMBINED_WORKER_X_LABEL,
         ideal="weak_speedup",
-        log_y=True,
     )
     plot_weak_scaling_series(
         openmp_mpi_series,
         "efficiency",
-        "Weak-scaling efficiency",
-        "Weak scaling - OpenMP vs MPI sharks: Efficiency",
+        WEAK_EFFICIENCY_Y_LABEL,
+        "OpenMP vs MPI Sharks - Weak-Scaling Efficiency",
         output_dir / "weak_scaling_openmp_mpi_sharks_efficiency.png",
-        openmp_mpi_x_label,
+        COMBINED_WORKER_X_LABEL,
         ideal="weak_efficiency",
         y_limits=(0, 1.05),
     )
@@ -443,19 +459,40 @@ def generate_weak_scaling_sharks_plots(raw_dir: Path, plots_dir: Path):
         hybrid_series.append((f"{procs} {process_label}", metrics))
 
     hybrid_specs = (
-        ("time", "Execution time (seconds)", "time", "weak_time", None),
-        ("speedup", "Scaled speedup", "speedup", "weak_speedup", None),
-        ("efficiency", "Weak-scaling efficiency", "efficiency", "weak_efficiency", (0, 1.05)),
+        (
+            "time",
+            "Execution time (seconds)",
+            "Execution Time",
+            "time",
+            "weak_time",
+            None,
+        ),
+        (
+            "speedup",
+            HYBRID_WEAK_SPEEDUP_Y_LABEL,
+            "Scaled Speedup",
+            "speedup",
+            "weak_speedup",
+            None,
+        ),
+        (
+            "efficiency",
+            HYBRID_WEAK_EFFICIENCY_Y_LABEL,
+            "Weak-Scaling Efficiency",
+            "efficiency",
+            "weak_efficiency",
+            (0, 1.05),
+        ),
     )
 
-    for metric_key, y_label, suffix, ideal, y_limits in hybrid_specs:
+    for metric_key, y_label, metric_title, suffix, ideal, y_limits in hybrid_specs:
         plot_weak_scaling_series(
             hybrid_series,
             metric_key,
             y_label,
-            f"Weak scaling - Hybrid sharks: {y_label}",
+            f"Hybrid Sharks - {metric_title}",
             output_dir / f"weak_scaling_hybrid_sharks_{suffix}.png",
-            "Total processes x threads",
+            HYBRID_WORKER_X_LABEL,
             ideal=ideal,
             ideal_baseline_time=baseline_time,
             y_limits=y_limits,
@@ -485,16 +522,16 @@ def plot_metric(metrics, x_label, y_key, y_label, title, output_path, y_limits=N
 
 def label_for_file(file_path: Path):
     name_map = {
-        "mpi_dim.txt": "MPI (dimensions)",
-        "openmp_dim.txt": "OpenMP (dimensions)",
-        "mpi_sharks.txt": "MPI (sharks)",
-        "openmp_sharks.txt": "OpenMP (sharks)",
-        "mpi_rot.txt": "MPI (rotations)",
-        "openmp_rot.txt": "OpenMP (rotations)",
-        "mpi_rot_huge.txt": "MPI (rotations, huge)",
-        "openmp_rot_huge.txt": "OpenMP (rotations, huge)",
-        "mpi_sharks_huge.txt": "MPI (sharks, huge)",
-        "openmp_sharks_huge.txt": "OpenMP (sharks, huge)",
+        "mpi_dim.txt": "MPI processes",
+        "openmp_dim.txt": "OpenMP threads",
+        "mpi_sharks.txt": "MPI processes",
+        "openmp_sharks.txt": "OpenMP threads",
+        "mpi_rot.txt": "MPI processes",
+        "openmp_rot.txt": "OpenMP threads",
+        "mpi_rot_huge.txt": "MPI rotations",
+        "openmp_rot_huge.txt": "OpenMP rotations",
+        "mpi_sharks_huge.txt": "MPI sharks",
+        "openmp_sharks_huge.txt": "OpenMP sharks",
     }
 
     if file_path.name in name_map:
@@ -515,33 +552,41 @@ def family_for_file(file_path: Path):
 
 
 def x_label_for_axis(axis: str):
-    return "Number of threads" if axis == "threads" else "Number of processes"
+    axis_name = "threads" if axis == "threads" else "processes"
+    return f"Number of {axis_name} ({LOG2_SCALE})"
 
 
 def x_label_for_family(family_name: str, series_data):
     axes = {axis for _, axis, _ in series_data}
 
     if axes == {"threads"}:
-        return "Number of threads"
+        return f"Number of threads ({LOG2_SCALE})"
     if axes == {"procs"}:
-        return "Number of processes"
-    return "Number of processes/threads"
+        return f"Number of processes ({LOG2_SCALE})"
+    return COMBINED_WORKER_X_LABEL
 
 
 def generate_family_plots(family_name: str, series_data, output_dir: Path, log_y_metrics=None):
     log_y_metrics = log_y_metrics or set()
     title_map = {
-        "mpi_dim": "MPI dimensions",
-        "dim": "Dimensions",
-        "sharks": "Sharks",
-        "rot": "Rotations",
-        "rot_huge": "Rotations (huge)",
+        "dim": "OpenMP vs MPI Dimensions",
+        "sharks": "OpenMP vs MPI Sharks",
+        "rot": "OpenMP vs MPI Rotations",
+        "rot_huge": "OpenMP vs MPI",
+        "favorable_sharks_openmp_mpi": "OpenMP vs MPI Sharks",
+        "favorable_dim_openmp_mpi": "OpenMP vs MPI Dimensions",
+        "favorable_rot_openmp_mpi": "OpenMP vs MPI Rotations",
+    }
+    title_suffix_map = {
+        "time": "Execution Time",
+        "speedup": "Speedup",
+        "efficiency": "Efficiency",
     }
 
     for metric_key, y_label, suffix in (
         ("time", "Execution time (seconds)", "time"),
-        ("speedup", "Speedup", "speedup"),
-        ("efficiency", "Efficiency", "efficiency"),
+        ("speedup", STRONG_SPEEDUP_Y_LABEL, "speedup"),
+        ("efficiency", STRONG_EFFICIENCY_Y_LABEL, "efficiency"),
     ):
         plt.figure(figsize=(10, 5.5))
 
@@ -563,8 +608,18 @@ def generate_family_plots(family_name: str, series_data, output_dir: Path, log_y
         plt.xscale("log", base=2)
         plt.xticks(all_x, [str(v) for v in all_x])
         plt.xlabel(x_label)
+        if metric_key in log_y_metrics:
+            y_label = f"{y_label} ({LOG2_SCALE})"
         plt.ylabel(y_label)
-        plt.title(f"{title_map.get(family_name, family_name.replace('_', ' ').title())}: {y_label}")
+        title = (
+            f"{title_map.get(family_name, family_name.replace('_', ' ').title())}"
+            f" - {title_suffix_map[metric_key]}"
+        )
+        if family_name == "rot_huge":
+            title += " (Large Dataset)"
+        elif family_name.startswith("favorable_"):
+            title += " (Favorable Parameters)"
+        plt.title(title)
         plt.grid(True, alpha=0.3)
         plt.legend()
 
@@ -597,27 +652,27 @@ def generate_hybrid_global_plots(raw_dir: Path, output_dir: Path):
         (
             "time",
             "Execution time (seconds)",
-            "Hybrid sharks global: Execution time",
+            "Execution Time",
             "time",
             None,
         ),
         (
             "speedup",
-            "Speedup (T(1,1) / T(P,T))",
-            "Hybrid sharks global: Speedup",
+            HYBRID_STRONG_SPEEDUP_Y_LABEL,
+            "Speedup",
             "speedup",
             None,
         ),
         (
             "efficiency",
-            "Efficiency (T(1,1) / (P*T*T(P,T)))",
-            "Hybrid sharks global: Efficiency",
+            HYBRID_STRONG_EFFICIENCY_Y_LABEL,
+            "Efficiency",
             "efficiency",
             (0, 1.05),
         ),
     )
 
-    for metric_key, y_label, title, suffix, y_limits in plot_specs:
+    for metric_key, y_label, metric_title, suffix, y_limits in plot_specs:
         plt.figure(figsize=(10, 5.5))
         all_workers = sorted({row["workers"] for metrics in metrics_by_procs.values() for row in metrics})
 
@@ -643,13 +698,18 @@ def generate_hybrid_global_plots(raw_dir: Path, output_dir: Path):
 
         plt.xscale("log", base=2)
         plt.xticks(all_workers, [str(worker) for worker in all_workers])
-        plt.xlabel("Number of workers (processes * threads, log2 scale)")
+        plt.xlabel(HYBRID_WORKER_X_LABEL)
+        if metric_key == "speedup":
+            y_label = f"{y_label} ({LOG2_SCALE})"
         plt.ylabel(y_label)
-        plt.title(title)
+        plt.title(f"Hybrid Sharks - {metric_title}")
         plt.grid(True, alpha=0.3)
         plt.legend()
 
-        apply_y_limits(all_y, y_limits)
+        if metric_key == "speedup":
+            plt.yscale("log", base=2)
+        else:
+            apply_y_limits(all_y, y_limits)
 
         plt.tight_layout()
         plt.savefig(output_dir / f"hybrid_sharks_global_{suffix}.png", dpi=300)
@@ -697,12 +757,24 @@ def generate_favorable_sharks_plots(raw_dir: Path, plots_dir: Path):
     hybrid_entries = parse_entries(hybrid_file)
     metrics_by_procs = compute_hybrid_global_metrics(hybrid_entries)
     plot_specs = (
-        ("time", "Execution time (seconds)", "time", None),
-        ("speedup", "Speedup", "speedup", "strong_speedup"),
-        ("efficiency", "Efficiency", "efficiency", "strong_efficiency"),
+        ("time", "Execution time (seconds)", "Execution Time", "time", None),
+        (
+            "speedup",
+            HYBRID_STRONG_SPEEDUP_Y_LABEL,
+            "Speedup",
+            "speedup",
+            "strong_speedup",
+        ),
+        (
+            "efficiency",
+            HYBRID_STRONG_EFFICIENCY_Y_LABEL,
+            "Efficiency",
+            "efficiency",
+            "strong_efficiency",
+        ),
     )
 
-    for metric_key, y_label, suffix, ideal in plot_specs:
+    for metric_key, y_label, metric_title, suffix, ideal in plot_specs:
         plt.figure(figsize=(10, 5.5))
         all_workers = sorted(
             {
@@ -731,13 +803,19 @@ def generate_favorable_sharks_plots(raw_dir: Path, plots_dir: Path):
 
         plt.xscale("log", base=2)
         plt.xticks(all_workers, [str(worker) for worker in all_workers])
-        plt.xlabel("Total processes x threads")
+        plt.xlabel(HYBRID_WORKER_X_LABEL)
+        if metric_key == "speedup":
+            y_label = f"{y_label} ({LOG2_SCALE})"
         plt.ylabel(y_label)
-        plt.title(f"Favorable sharks - Hybrid: {y_label}")
+        plt.title(
+            f"Hybrid Sharks - {metric_title} (Favorable Parameters)"
+        )
         plt.grid(True, alpha=0.3)
         plt.legend()
 
-        if metric_key == "efficiency":
+        if metric_key == "speedup":
+            plt.yscale("log", base=2)
+        elif metric_key == "efficiency":
             apply_y_limits(all_y, (0, 1.05))
 
         plt.tight_layout()
@@ -819,7 +897,7 @@ def main():
     generate_hybrid_global_plots(raw_dir, output_dir)
     generate_weak_scaling_sharks_plots(raw_dir, output_dir)
     generate_favorable_sharks_plots(raw_dir, output_dir)
-    generate_favorable_openmp_mpi_plots(raw_dir, output_dir, "dim", log_y_metrics={"time", "speedup"})
+    generate_favorable_openmp_mpi_plots(raw_dir, output_dir, "dim")
     generate_favorable_openmp_mpi_plots(raw_dir, output_dir, "rot")
 
 

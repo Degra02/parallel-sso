@@ -54,9 +54,9 @@ def plot_serial_slowdown(series: list[tuple[str, list[int], list[float]]], outpu
     for label, x_values, slowdown in series:
         plt.plot(x_values, slowdown, marker="o", linewidth=1.8, markersize=4, label=label)
 
-    plt.xlabel("Multiplier index")
-    plt.ylabel("Slowdown (time / baseline time)")
-    plt.title("Serial SSO slowdown across parameter sweeps")
+    plt.xlabel("Parameter multiplier")
+    plt.ylabel("Slowdown, R = T\u1d62 / T\u2081")
+    plt.title("Serial SSO - Parameter Sensitivity")
     plt.grid(True, alpha=0.3)
     plt.legend()
     plt.tight_layout()
