@@ -25,7 +25,7 @@
     ),
     (
       name: "Giacomo Vettore",
-      location: [000000],
+      location: [268198],
       email: "giacomo.vettore@studenti.unitn.it",
     ),
   ),

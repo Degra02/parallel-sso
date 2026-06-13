@@ -1,0 +1,40 @@
+#!/usr/bin/env bash
+#PBS -q shortCPUQ
+#PBS -l walltime=00:15:00
+#PBS -l place=scatter:excl
+#PBS -j oe
+
+set -euo pipefail
+
+: "${N_PROCS:?Submit with qsub -v N_PROCS=<processes>}"
+
+cd "${PBS_O_WORKDIR:?PBS_O_WORKDIR is not set}"
+module load OpenMPI/4.1.6-GCC-13.2.0
+
+# Weak scaling on the dimension axis: nd grows with the worker count, so each
+# rank keeps a constant slice of dimensions. Few sharks, no rotation.
+dims=$((100000 * N_PROCS))
+output_dir="benchmarks/raw/weak_scaling_dim"
+output_file="${output_dir}/weak_scaling_mpi_dim.txt"
+
+mkdir -p "${output_dir}"
+
+result=$(
+  mpirun -np "${N_PROCS}" \
+    ./sso_mpi_dim \
+    -p 5 \
+    -d "${dims}" \
+    -k 20 \
+    -m 0 |
+    sed -n '/procs=.*Total time:/p'
+)
+
+if [[ -z "${result}" ]]; then
+  echo "Could not extract MPI execution time" >&2
+  exit 1
+fi
+
+(
+  flock -x 9
+  printf '%s\n' "${result}" >> "${output_file}"
+) 9>"${output_file}.lock"
