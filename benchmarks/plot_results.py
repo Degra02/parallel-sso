@@ -300,6 +300,7 @@ def plot_weak_scaling_series(
     ideal=None,
     ideal_baseline_time=None,
     y_limits=None,
+    log_y=False,
 ):
     plt.figure(figsize=(10, 5.5))
     all_x = sorted(
@@ -350,6 +351,8 @@ def plot_weak_scaling_series(
     plt.grid(True, alpha=0.3)
     plt.legend()
 
+    if log_y:
+        plt.yscale("log")
     apply_y_limits(all_y, y_limits)
 
     plt.tight_layout()
@@ -411,6 +414,7 @@ def generate_weak_scaling_sharks_plots(raw_dir: Path, plots_dir: Path):
         output_dir / "weak_scaling_openmp_mpi_sharks_speedup.png",
         openmp_mpi_x_label,
         ideal="weak_speedup",
+        log_y=True,
     )
     plot_weak_scaling_series(
         openmp_mpi_series,
@@ -455,6 +459,7 @@ def generate_weak_scaling_sharks_plots(raw_dir: Path, plots_dir: Path):
             ideal=ideal,
             ideal_baseline_time=baseline_time,
             y_limits=y_limits,
+            log_y=(metric_key == "speedup"),
         )
 
 
