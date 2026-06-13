@@ -8,7 +8,7 @@ procs=32 Total time: 2.512984 s
 procs=64 Total time: 1.296244 s
 
 procs=1 Total time: 54.811058 s
-procs=2 Total time: 15.094159 s
+procs=2 Total time: 26.094159 s
 procs=4 Total time: 14.579468 s
 procs=8 Total time: 7.526360 s
 procs=16 Total time: 4.161171 s

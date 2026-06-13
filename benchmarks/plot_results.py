@@ -523,7 +523,8 @@ def x_label_for_family(family_name: str, series_data):
     return "Number of processes/threads"
 
 
-def generate_family_plots(family_name: str, series_data, output_dir: Path):
+def generate_family_plots(family_name: str, series_data, output_dir: Path, log_y_metrics=None):
+    log_y_metrics = log_y_metrics or set()
     title_map = {
         "mpi_dim": "MPI dimensions",
         "dim": "Dimensions",
@@ -562,7 +563,9 @@ def generate_family_plots(family_name: str, series_data, output_dir: Path):
         plt.grid(True, alpha=0.3)
         plt.legend()
 
-        if metric_key == "efficiency":
+        if metric_key in log_y_metrics:
+            plt.yscale("log", base=2)
+        elif metric_key == "efficiency":
             apply_y_limits(all_y, (0, 1.05))
 
         plt.tight_layout()
@@ -740,6 +743,45 @@ def generate_favorable_sharks_plots(raw_dir: Path, plots_dir: Path):
         plt.close()
 
 
+def generate_favorable_openmp_mpi_plots(raw_dir: Path, plots_dir: Path, strategy: str, log_y_metrics=None):
+    favorable_dir = raw_dir / f"favorable_{strategy}"
+
+    if not favorable_dir.exists():
+        return
+
+    series = []
+    for label, file_name, axis in (
+        ("OpenMP threads", f"openmp_{strategy}_fav_results.txt", "threads"),
+        ("MPI processes", f"mpi_{strategy}_fav_results.txt", "procs"),
+    ):
+        file_path = favorable_dir / file_name
+        if not file_path.exists() or file_path.stat().st_size == 0:
+            continue
+        try:
+            entries = parse_entries(file_path)
+        except ValueError:
+            # File present but holds no parseable results yet.
+            continue
+        results = group_by_axis(entries, axis)
+        metrics = compute_metrics(results)
+        series.append((label, axis, metrics))
+
+    if not series:
+        return
+
+    output_dir = plots_dir / f"favorable_{strategy}"
+    output_dir.mkdir(parents=True, exist_ok=True)
+    for old_plot in output_dir.glob(f"favorable_{strategy}_openmp_mpi_*.png"):
+        old_plot.unlink()
+
+    generate_family_plots(
+        f"favorable_{strategy}_openmp_mpi",
+        series,
+        output_dir,
+        log_y_metrics=log_y_metrics,
+    )
+
+
 def main():
     script_dir = Path(__file__).resolve().parent
     raw_dir = script_dir / "raw"
@@ -772,6 +814,8 @@ def main():
     generate_hybrid_global_plots(raw_dir, output_dir)
     generate_weak_scaling_sharks_plots(raw_dir, output_dir)
     generate_favorable_sharks_plots(raw_dir, output_dir)
+    generate_favorable_openmp_mpi_plots(raw_dir, output_dir, "dim", log_y_metrics={"time", "speedup"})
+    generate_favorable_openmp_mpi_plots(raw_dir, output_dir, "rot")
 
 
 if __name__ == "__main__":
