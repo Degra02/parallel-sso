@@ -682,13 +682,14 @@ def generate_hybrid_global_plots(raw_dir: Path, output_dir: Path):
             x_values = [row["workers"] for row in metrics]
             y_values = [row[metric_key] for row in metrics]
             all_y.extend(y_values)
+            process_label = "process" if procs == 1 else "processes"
             plt.plot(
                 x_values,
                 y_values,
                 marker="o",
                 linewidth=1.5,
                 markersize=4,
-                label=f"Hybrid Sharks ({procs} procs)",
+                label=f"{procs} MPI {process_label}",
             )
 
         if metric_key == "speedup":
@@ -699,14 +700,14 @@ def generate_hybrid_global_plots(raw_dir: Path, output_dir: Path):
         plt.xscale("log", base=2)
         plt.xticks(all_workers, [str(worker) for worker in all_workers])
         plt.xlabel(HYBRID_WORKER_X_LABEL)
-        if metric_key == "speedup":
+        if metric_key in ("speedup", "time"):
             y_label = f"{y_label} ({LOG2_SCALE})"
         plt.ylabel(y_label)
         plt.title(f"Hybrid Sharks - {metric_title}")
         plt.grid(True, alpha=0.3)
         plt.legend()
 
-        if metric_key == "speedup":
+        if metric_key in ("speedup", "time"):
             plt.yscale("log", base=2)
         else:
             apply_y_limits(all_y, y_limits)
