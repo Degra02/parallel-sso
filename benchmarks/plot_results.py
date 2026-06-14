@@ -83,14 +83,9 @@ def parse_entries(file_path: Path):
 
 
 def infer_axis(entries):
-    has_threads = any(entry["threads"] is not None for entry in entries)
-    has_procs = any(entry["procs"] is not None for entry in entries)
-
-    if has_threads and has_procs:
+    if any(entry["threads"] is not None for entry in entries):
         return "threads"
-    if has_threads:
-        return "threads"
-    if has_procs:
+    if any(entry["procs"] is not None for entry in entries):
         return "procs"
     raise ValueError("Could not infer axis")
 
@@ -556,7 +551,7 @@ def x_label_for_axis(axis: str):
     return f"Number of {axis_name} ({LOG2_SCALE})"
 
 
-def x_label_for_family(family_name: str, series_data):
+def x_label_for_family(series_data):
     axes = {axis for _, axis, _ in series_data}
 
     if axes == {"threads"}:
@@ -590,10 +585,10 @@ def generate_family_plots(family_name: str, series_data, output_dir: Path, log_y
     ):
         plt.figure(figsize=(10, 5.5))
 
-        x_label = x_label_for_family(family_name, series_data)
+        x_label = x_label_for_family(series_data)
         all_y = []
 
-        for label, axis, metrics in series_data:
+        for label, _, metrics in series_data:
             x_values = [row["workers"] for row in metrics]
             y_values = [row[metric_key] for row in metrics]
             all_y.extend(y_values)
@@ -633,58 +628,30 @@ def generate_family_plots(family_name: str, series_data, output_dir: Path, log_y
         plt.close()
 
 
-def generate_hybrid_global_plots(raw_dir: Path, output_dir: Path):
-    hybrid_dir = raw_dir / "hybrid_sharks"
+def plot_hybrid_by_procs(metrics_by_procs, output_dir, file_prefix, title_suffix, time_log_y):
+    """Plot per-process-count hybrid curves against P x T workers.
 
-    if not hybrid_dir.exists():
-        return
-
-    entries = []
-    for file_path in sorted(hybrid_dir.glob("*.txt")):
-        entries.extend(parse_entries(file_path))
-
-    if not entries:
-        return
-
-    metrics_by_procs = compute_hybrid_global_metrics(entries)
-
-    plot_specs = (
-        (
-            "time",
-            "Execution time (seconds)",
-            "Execution Time",
-            "time",
-            None,
-        ),
-        (
-            "speedup",
-            HYBRID_STRONG_SPEEDUP_Y_LABEL,
-            "Speedup",
-            "speedup",
-            None,
-        ),
-        (
-            "efficiency",
-            HYBRID_STRONG_EFFICIENCY_Y_LABEL,
-            "Efficiency",
-            "efficiency",
-            (0, 1.05),
-        ),
+    Shared by the fixed-config global view and the favorable view; they differ
+    only in the title suffix, the output filename, and whether time is log-scaled.
+    """
+    specs = (
+        ("time", "Execution time (seconds)", "Execution Time"),
+        ("speedup", HYBRID_STRONG_SPEEDUP_Y_LABEL, "Speedup"),
+        ("efficiency", HYBRID_STRONG_EFFICIENCY_Y_LABEL, "Efficiency"),
     )
+    all_workers = sorted({row["workers"] for metrics in metrics_by_procs.values() for row in metrics})
 
-    for metric_key, y_label, metric_title, suffix, y_limits in plot_specs:
+    for metric_key, y_label, metric_title in specs:
+        log_y = metric_key == "speedup" or (metric_key == "time" and time_log_y)
         plt.figure(figsize=(10, 5.5))
-        all_workers = sorted({row["workers"] for metrics in metrics_by_procs.values() for row in metrics})
-
         all_y = []
 
         for procs, metrics in metrics_by_procs.items():
-            x_values = [row["workers"] for row in metrics]
             y_values = [row[metric_key] for row in metrics]
             all_y.extend(y_values)
             process_label = "process" if procs == 1 else "processes"
             plt.plot(
-                x_values,
+                [row["workers"] for row in metrics],
                 y_values,
                 marker="o",
                 linewidth=1.5,
@@ -700,21 +667,41 @@ def generate_hybrid_global_plots(raw_dir: Path, output_dir: Path):
         plt.xscale("log", base=2)
         plt.xticks(all_workers, [str(worker) for worker in all_workers])
         plt.xlabel(HYBRID_WORKER_X_LABEL)
-        if metric_key in ("speedup", "time"):
+        if log_y:
             y_label = f"{y_label} ({LOG2_SCALE})"
         plt.ylabel(y_label)
-        plt.title(f"Hybrid Sharks - {metric_title}")
+        title = f"Hybrid Sharks - {metric_title}"
+        if title_suffix:
+            title += f" {title_suffix}"
+        plt.title(title)
         plt.grid(True, alpha=0.3)
         plt.legend()
 
-        if metric_key in ("speedup", "time"):
+        if log_y:
             plt.yscale("log", base=2)
-        else:
-            apply_y_limits(all_y, y_limits)
+        elif metric_key == "efficiency":
+            apply_y_limits(all_y, (0, 1.05))
 
         plt.tight_layout()
-        plt.savefig(output_dir / f"hybrid_sharks_global_{suffix}.png", dpi=300)
+        plt.savefig(output_dir / f"{file_prefix}_{metric_key}.png", dpi=300)
         plt.close()
+
+
+def generate_hybrid_global_plots(raw_dir: Path, output_dir: Path):
+    hybrid_dir = raw_dir / "hybrid_sharks"
+
+    if not hybrid_dir.exists():
+        return
+
+    entries = []
+    for file_path in sorted(hybrid_dir.glob("*.txt")):
+        entries.extend(parse_entries(file_path))
+
+    if not entries:
+        return
+
+    metrics_by_procs = compute_hybrid_global_metrics(entries)
+    plot_hybrid_by_procs(metrics_by_procs, output_dir, "hybrid_sharks_global", "", time_log_y=True)
 
 
 def generate_favorable_sharks_plots(raw_dir: Path, plots_dir: Path):
@@ -757,74 +744,13 @@ def generate_favorable_sharks_plots(raw_dir: Path, plots_dir: Path):
 
     hybrid_entries = parse_entries(hybrid_file)
     metrics_by_procs = compute_hybrid_global_metrics(hybrid_entries)
-    plot_specs = (
-        ("time", "Execution time (seconds)", "Execution Time", "time", None),
-        (
-            "speedup",
-            HYBRID_STRONG_SPEEDUP_Y_LABEL,
-            "Speedup",
-            "speedup",
-            "strong_speedup",
-        ),
-        (
-            "efficiency",
-            HYBRID_STRONG_EFFICIENCY_Y_LABEL,
-            "Efficiency",
-            "efficiency",
-            "strong_efficiency",
-        ),
+    plot_hybrid_by_procs(
+        metrics_by_procs,
+        output_dir,
+        "favorable_sharks_hybrid",
+        "(Favorable Parameters)",
+        time_log_y=False,
     )
-
-    for metric_key, y_label, metric_title, suffix, ideal in plot_specs:
-        plt.figure(figsize=(10, 5.5))
-        all_workers = sorted(
-            {
-                row["workers"]
-                for metrics in metrics_by_procs.values()
-                for row in metrics
-            }
-        )
-        all_y = []
-
-        for procs, metrics in metrics_by_procs.items():
-            x_values = [row["workers"] for row in metrics]
-            y_values = [row[metric_key] for row in metrics]
-            all_y.extend(y_values)
-            process_label = "process" if procs == 1 else "processes"
-            plt.plot(
-                x_values,
-                y_values,
-                marker="o",
-                linewidth=1.5,
-                markersize=4,
-                label=f"{procs} MPI {process_label}",
-            )
-
-        all_y.extend(add_ideal_line(ideal, all_workers))
-
-        plt.xscale("log", base=2)
-        plt.xticks(all_workers, [str(worker) for worker in all_workers])
-        plt.xlabel(HYBRID_WORKER_X_LABEL)
-        if metric_key == "speedup":
-            y_label = f"{y_label} ({LOG2_SCALE})"
-        plt.ylabel(y_label)
-        plt.title(
-            f"Hybrid Sharks - {metric_title} (Favorable Parameters)"
-        )
-        plt.grid(True, alpha=0.3)
-        plt.legend()
-
-        if metric_key == "speedup":
-            plt.yscale("log", base=2)
-        elif metric_key == "efficiency":
-            apply_y_limits(all_y, (0, 1.05))
-
-        plt.tight_layout()
-        plt.savefig(
-            output_dir / f"favorable_sharks_hybrid_{suffix}.png",
-            dpi=300,
-        )
-        plt.close()
 
 
 def generate_favorable_openmp_mpi_plots(raw_dir: Path, plots_dir: Path, strategy: str, log_y_metrics=None):

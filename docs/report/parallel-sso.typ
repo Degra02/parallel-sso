@@ -48,7 +48,8 @@ Although the Shark Smell Optimization (SSO) algorithm demonstrates strong optimi
 
 \
 
-This paper investigates multiple parallel implementations of the Shark Smell Optimization algorithm using Message Passing Interface (MPI), OpenMP, and hybrid MPI+OpenMP programming models. In addition to comparing distributed-memory and shared-memory paradigms, the study analyzes different parallelization strategies within the algorithm itself. Specifically, parallel execution is applied at three distinct levels:
+This analysis studies various portions of the serial algorithm, parallelizing them in isolation, so that the observed behavior can be attributed to that specific computational step rather than to a combination of optimizations applied at once. This is the reason for the large number of variants reported here, through which we are able to identify the configuration leading to the best performance.
+
 
 - `shark-level` parallelism, where candidate solutions are distributed across population elements;
 - `dimension-level` parallelism, where computations across search-space dimensions are parallelized;
@@ -152,7 +153,7 @@ Preliminary study about the opportunities for parallelism inherent in the proble
 - Hybrid parallelization strategies, with data dependencies must be discussed too
 */
 
-The SSO algorithm contains various sources of parallelism. The evaluation and update of individual sharks can generally be executed independently, making shark-level decomposition highly suitable for distributed-memory execution. Conversely, dimension-level decomposition is a finer-grained form of parallelism that can be applied within the evaluation of a single shark's position and speed updates, which may be more efficient in shared-memory environments. Hybrid approaches can combine these strategies to exploit both inter-node and intra-node parallelism. \
+The SSO algorithm contains various sources of parallelism. The evaluation and update of individual sharks can generally be executed independently, making shark-level decomposition highly suitable for distributed-memory execution. Conversely, dimension-level decomposition is a finer-grained form of parallelism that can be applied within the evaluation of a single shark's position and speed updates, which may be more efficient in shared-memory environments. \
 
 @fig-serial-slowdown shows the execution time of the serial algorithm as each parameter (number of sharks, dimensions, rotations, stages) increases. The cost grows with every parameter, so larger problem instances quickly become intractable serially and motivate the parallel designs that follow.
 
@@ -161,11 +162,11 @@ The SSO algorithm contains various sources of parallelism. The evaluation and up
   caption: [Execution time of the serial SSO algorithm as a function of the number of sharks, dimensions, stages and rotations.],
 ) <fig-serial-slowdown>
 
-Although the outer "stage" loop over the stage index `k`, in the graph indicated by the red line, might at first seem a good candidate for parallelization, it is inherently sequential: each iteration at stage `k` consumes and modifies data produced at stage `k-1` (for example updated shark positions, velocities and fitness values). These true data dependencies prevent concurrent execution of different `k` iterations without violating correctness. Any approach to overlap would require complex checkpointing or synchronization that typically outweighs potential gains. Therefore, parallelism is applied at the shark, dimension and rotation levels rather than across stage iterations.
+Although the "stage" loop over the stage index `k`, in the graph indicated by the red line, might at first seem a good candidate for parallelization, it is inherently sequential: each iteration at stage `k` consumes and modifies data produced at stage `k-1` (for example updated shark positions, velocities and fitness values). These true data dependencies prevent concurrent execution of different `k` iterations without violating correctness. Any approach to overlap would require complex checkpointing or synchronization that typically outweighs potential gains. Therefore, parallelism is applied at the shark, dimension and rotation levels rather than across stage iterations.
 
 \
 
-Each decomposition strategy we implement targets exactly one of the independent loops of the serial algorithm shown in the previous section. The outer shark loop defines `shark-level` parallelism; steps 1 and 2 (the per-dimension derivative, speed update and forward movement) define `dimension-level` parallelism; step 3 (the rotational local search over the `M` probes) defines `rotation-level` parallelism. Step 4 is the only point requiring coordination, since updating the global best is a reduction across the otherwise independent work. By parallelizing one such loop at a time and benchmarking it in isolation, we can measure the scaling contribution of each individual hot-spot instead of conflating several optimizations inside a single tuned solver. Crossing each decomposition with the programming models then separates the effect of the algorithmic decomposition from the effect of the underlying memory model.
+Each decomposition strategy we implement targets exactly one of the independent loops of the serial algorithm shown in the previous section. The outer shark loop defines `shark-level` parallelism; steps 1 and 2 (the per-dimension derivative, speed update and forward movement) define `dimension-level` parallelism; step 3 (the rotational local search over the `M` probes) defines `rotation-level` parallelism. Step 4 is the only point requiring coordination, since updating the global best is a reduction across the otherwise independent work. Parallelizing one loop at a time and benchmarking it on its own lets us measure the scaling of each step separately, rather than mixing several changes in one solver. Running each decomposition under both programming models then tells the cost of the decomposition apart from the cost of the memory model.
 
 \
 
@@ -255,7 +256,7 @@ Discuss pros and cons of each strategy / implementation. The report can include 
 - Hybrid parallelization is recommended though it is not mandatory
 */
 
-All code and scripts related to the project are available in the repository @parallel-sso-repo. The implementation reuses a single algorithmic core, found in `sso/sso.c` and exposes multiple execution strategies through self-contained entrypoints in the `src` directory, e.g. `src/main_mpi_sharks.c`, `src/main_openmp_dim.c`, `src/main_hybrid_dim.c`, etc. Each entrypoint implements a specific parallelization strategy and programming model, while sharing the same underlying SSO logic.
+All code and scripts related to the project are available in the repository @parallel-sso-repo. Shared utilities and data structures live in `sso/sso.c`, while multiple execution strategies are exposed through self-contained entrypoints in the `src` directory, e.g. `src/main_mpi_sharks.c`, `src/main_openmp_dim.c`, `src/main_hybrid_dim.c`, etc. Each entrypoint implements a specific parallelization strategy and programming model on top of the same SSO formulation.
 
 The names of the entrypoints follow the convention `main_<model>_<strategy>.c`, where `<model>` is one of `mpi`, `openmp`, or `hybrid`, and `<strategy>` indicates the parallelization approach, i.e. `sharks`, `dim`, `rot`.
 
@@ -268,7 +269,7 @@ We implemented three MPI decompositions that map naturally to the SSO algorithm:
 - *Shark-level (population) decomposition*: each MPI rank owns a subset of the population and executes the full per-shark stages locally. At the end of the run ranks perform a reduction to determine the globally best solution. See `src/main_mpi_sharks.c`.
  This approach is straightforward and minimizes communication during the main loop, as each rank can independently update its sharks. This results in low communication overhead and good scalability when the population size is large enough to amortize the cost of setup and evaluation. However, it may suffer from load imbalance if the sharks are not uniformly distributed in terms of computational cost (e.g. some sharks may converge faster than others).
 
-- *Dimension-level decomposition*: the decision-variable vector is partitioned across MPI ranks; each rank computes updates for its set of dimensions and `MPI_Allgatherv` is used to reconstruct full position vectors when needed. See `src/main_mpi_dim.c`.
+- *Dimension-level decomposition*: each shark's position vector is partitioned across MPI ranks; each rank computes updates for its set of dimensions and `MPI_Allgatherv` is used to reconstruct full position vectors when needed. See `src/main_mpi_dim.c`.
  Here, the main loop is parallelized across dimensions, which can be beneficial when the cost of evaluating the objective function or computing gradients is dominated by per-dimension work (e.g. very high `nd`). However, this approach introduces higher communication overhead due to the need for frequent all-gather operations to share updated positions across ranks, and it requires more complex synchronization to ensure consistency of the shared state.
 
 #figure(
@@ -371,7 +372,7 @@ The total worker count is $P times T$ where P is the number of MPI processes and
 
 
 == Notes and Supporting Scripts
-The algorithmic core (`sso_update_speed`, `sso_move_forward`, `sso_unrotational_search`, `sso_sharks_alloc`) is implemented in `src/sso/sso.c` and reused across every main entrypoint; this keeps the implementations comparable and reduces duplication. \
+Shared utilities for population allocation, domain setup, and initialization live in `src/sso/sso.c` and are used by every entrypoint, keeping data layout and initialization identical across variants. \
 Argument parsing and default parameters live in `src/sso/parse_args.c` and are extended in each `main_*` file to add parallel-specific options (only number of threads in this case). \
 Benchmarking and plotting tools are under `benchmarks/` and `tests/` (examples: `tests/launch_tests.sh`, `benchmarks/plot_results.py`). These scripts were used to generate the figures reported in Section 4.
 
@@ -653,7 +654,7 @@ All experiments were executed on the HPC cluster using the PBS scheduler in `exc
 
 This paper studied seven parallel variants of the Shark Smell Optimization algorithm: three decomposition strategies (shark-level, dimension-level, rotation-level) under both MPI and OpenMP, plus a hybrid MPI+OpenMP implementation at the shark level.
 
-The central finding is that the decomposition strategy matters far more than the programming model. Shark-level decomposition is embarrassingly parallel and scales almost linearly with worker count in both MPI and OpenMP, reaching $43x$ at 64 MPI processes and $50x$ at 64 OpenMP threads on the Rastrigin benchmark. Dimension-level and rotation-level decompositions both fail to scale under the standard parameter set because their work granularity (a single gradient evaluation or a single rotation probe) is too small to amortize synchronization and communication costs. With a larger rotation count, rotation-level MPI recovers and reaches $20x$ at 64 processes, confirming that these strategies are viable only when the per-unit workload is sufficient.
+The central finding is that the decomposition strategy matters far more than the programming model. Shark-level decomposition is highly parallel and scales almost linearly with worker count in both MPI and OpenMP, reaching 43$times$ at 64 MPI processes and 50$times$ at 64 OpenMP threads on the Rastrigin benchmark. Dimension-level and rotation-level decompositions both fail to scale under the standard parameter set because their work granularity (a single gradient evaluation or a single rotation probe) is too small to amortize synchronization and communication costs. With a larger rotation count, rotation-level MPI recovers and reaches 20$times$ at 64 processes, confirming that these strategies are viable only when the per-unit workload is sufficient.
 
 The hybrid MPI+OpenMP shark-level variant combines the two scalable axes and achieves the shortest wall-clock time: 0.277 s at p=64, t=32 (2048 total cores), a 450$times$ reduction over the serial baseline at 22% efficiency. The practical operating point for the standard problem size is p=8--16 processes and t=8--32 threads, which yields 50$times$--230$times$ speedup at 30--52% efficiency with far fewer resources.
 
