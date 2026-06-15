@@ -50,8 +50,7 @@ Although the Shark Smell Optimization (SSO) algorithm demonstrates strong optimi
 
 \
 
-This analysis studies various portions of the serial algorithm, parallelizing them in isolation, so that the observed behavior can be attributed to that specific computational step rather than to a combination of optimizations applied at once. This is the reason for the large number of variants reported here, through which we are able to identify the configuration leading to the best performance.
-
+We parallelize the serial algorithm one loop at a time, in isolation, so that the measured scaling can be tied to that single step rather than to several optimizations applied at once. This is why we report so many variants. Parallelism is applied at three levels:
 
 - `shark-level` parallelism, where candidate solutions are distributed across population elements;
 - `dimension-level` parallelism, where computations across search-space dimensions are parallelized;
@@ -59,11 +58,7 @@ This analysis studies various portions of the serial algorithm, parallelizing th
 
 These three decomposition strategies are orthogonal to the programming model: each is implemented under MPI, OpenMP, and hybrid MPI+OpenMP. "Hybrid" here denotes the programming model (distributed plus shared memory), not a fourth decomposition.
 
-By combining these algorithmic decomposition strategies with MPI, OpenMP, and hybrid MPI+OpenMP execution models, the work evaluates multiple parallel variants of SSO and analyzes their scalability, synchronization behavior, communication overhead, and computational efficiency on multicore HPC architectures.
-
-\
-
-The study is structured as a controlled, point-by-point investigation: each independent loop of the serial algorithm is parallelized in isolation, so that the observed scaling behavior can be attributed to that specific computational step rather than to a combination of optimizations applied at once. This is what motivates the comparatively large number of variants reported here, and it is precisely this systematic exploration of each parallelizable point that lets us identify the configuration that delivers the best performance.
+Combining these decomposition strategies with the three programming models, we evaluate the resulting variants of SSO and analyze their scalability, synchronization behavior, communication overhead, and efficiency on multicore HPC architectures.
 
 == The Shark Smell Optimization Algorithm
 
@@ -271,10 +266,10 @@ The following subsections describe the main parallelization strategies we implem
 We implemented three MPI decompositions that map naturally to the SSO algorithm:
 
 - *Shark-level (population) decomposition*: each MPI rank owns a subset of the population and executes the full per-shark stages locally. At the end of the run ranks perform a reduction to determine the globally best solution. See `src/main_mpi_sharks.c`.
- This approach is straightforward and minimizes communication during the main loop, as each rank can independently update its sharks. This results in low communication overhead and good scalability when the population size is large enough to amortize the cost of setup and evaluation. However, it may suffer from load imbalance if the sharks are not uniformly distributed in terms of computational cost (e.g. some sharks may converge faster than others).
+ Communication is minimal during the main loop, since each rank updates its sharks independently, giving good scalability once the population is large enough to amortize setup. The main risk is load imbalance when per-shark cost varies.
 
 - *Dimension-level decomposition*: each shark's position vector is partitioned across MPI ranks; each rank computes updates for its set of dimensions and `MPI_Allgatherv` is used to reconstruct full position vectors when needed. See `src/main_mpi_dim.c`.
- Here, the main loop is parallelized across dimensions, which can be beneficial when the cost of evaluating the objective function or computing gradients is dominated by per-dimension work (e.g. very high `nd`). However, this approach introduces higher communication overhead due to the need for frequent all-gather operations to share updated positions across ranks, and it requires more complex synchronization to ensure consistency of the shared state.
+ This helps only when per-dimension work dominates (very high `nd`). The cost is a frequent all-gather to share updated positions across ranks, plus tighter synchronization to keep the position vector consistent.
 
 #figure(
   [
@@ -292,7 +287,7 @@ We implemented three MPI decompositions that map naturally to the SSO algorithm:
 ) <code-mpi-dim>
 
 - *Rotation-level decomposition*: the inner rotational local-search probes are distributed across ranks and the best candidate is found with a reduction (e.g. `MPI_MAXLOC` or custom two-value reduction). See `src/main_mpi_rot.c`.
- Like the dimension-level approach, this strategy can be effective when the cost of the rotational search is significant (e.g. large `rotations`), but it also introduces communication overhead due to the need for reductions to find the best candidate across ranks. However, it minimizes redundant objective evaluations since each rank only evaluates a subset of the rotations, and the reduction combines results efficiently.
+ This pays off when the rotational search is large (big `M`): each rank evaluates a disjoint slice of the probes and a single reduction selects the best across ranks. For small `M` the reduction cost dominates the saved computation.
 
 #figure(
   [
@@ -416,10 +411,10 @@ The second is a set of *favorable*, strategy-specific configurations. Each one e
     [Favorable dim],    [5],    [$10^8$], [5],  [0],
     [Favorable rot],    [16],   [200],  [100],  [20000],
   ),
-  caption: [Fixed and favorable parameter families. Each favorable set has its own serial baseline $T(1)$.],
+  caption: [Fixed and favorable parameter families. Each favorable set has its own serial baseline $T_"ser"$.],
 ) <tab-configs>
 
-Each favorable configuration is timed against its own serial baseline $T(1)$, so the reported speedup and efficiency are always relative to the matching reference. The remaining algorithm parameters (`eta`, `alpha`, `beta`) are set to the values from the original SSO paper @sso.
+Each favorable configuration is timed against its own serial baseline $T_"ser"$, so the reported speedup and efficiency are always relative to the matching reference. The remaining algorithm parameters (`eta`, `alpha`, `beta`) are set to the values from the original SSO paper @sso.
 
 A set of scripts was developed to automate job submission across different process and thread counts. The scripts generate PBS job files from templates and throttle submission to stay within the queue's concurrent-job limit. All jobs run in `excl` placement mode to prevent resource sharing with other workloads and ensure consistent wall-clock measurements.
 
@@ -549,7 +544,7 @@ Efficiency falls off only at the very largest combined counts, where the local p
     image("images/hybrid_sharks_global_speedup.png"),
     image("images/hybrid_sharks_global_efficiency.png"),
   ),
-  caption: [Hybrid MPI+OpenMP shark-level implementation, global view: execution time, speedup, and efficiency measured against the serial baseline $T(1,1)$. Each line corresponds to a fixed number of MPI processes; the x-axis is the total number of workers $P times T$ on a log2 scale.],
+  caption: [Hybrid MPI+OpenMP shark-level implementation, global view: execution time, speedup, and efficiency measured against the serial baseline $T_"ser"$. Each line corresponds to a fixed number of MPI processes; the x-axis is the total number of workers $P times T$ on a log2 scale.],
 ) <fig-hybrid-global>
 
 @fig-hybrid-global normalizes every configuration to the serial baseline and places the total worker count $P times T$ on a common log2 axis, so that all hybrid configurations can be read against one another and against serial execution directly.
@@ -629,7 +624,7 @@ All results so far are strong scaling: a fixed problem solved with more workers.
   caption: [Weak scaling, hybrid MPI+OpenMP shark-level: execution time, speedup, and efficiency as the population grows with the worker count.],
 ) <fig-weak-sharks-hybrid>
 
-Because shark-level decomposition coordinates only through one final reduction, the per-worker work is essentially independent of the worker count, so execution time stays nearly flat as the population and workers grow together. The weak-scaling efficiency remains high and degrades only slowly, driven by the growing cost of the final reduction rather than by the per-shark computation. This is the complementary view to the strong-scaling results: shark-level decomposition is both strongly and weakly scalable.
+Shark-level decomposition coordinates only through one final reduction, so the per-worker work is largely independent of the worker count. Execution time still grows moderately as the population and workers scale together, and weak-scaling efficiency declines to roughly two thirds at the largest counts, driven by the growing cost of the final reduction. The growth is gradual rather than flat: shark-level decomposition weak-scales reasonably well, complementing its strong-scaling behaviour.
 
 == Weak scaling (dimension-level)
 
