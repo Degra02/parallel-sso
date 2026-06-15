@@ -1,7 +1,7 @@
-procs=8 Total time: 1.332920 s
-procs=16 Total time: 1.553141 s
-procs=4 Total time: 0.977360 s
 procs=1 Total time: 0.932315 s
 procs=2 Total time: 0.911878 s
+procs=4 Total time: 0.977360 s
+procs=8 Total time: 1.332920 s
+procs=16 Total time: 1.553141 s
 procs=32 Total time: 1.417290 s
 procs=64 Total time: 1.428047 s

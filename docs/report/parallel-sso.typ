@@ -228,6 +228,11 @@ To decide which loops can be parallelized, and with which synchronization, we cl
 
 The resolution of each dependency in the parallel variants is summarized in @tab-deps-res. Most are removed by privatization (per-worker scratch buffers and independent PRNG streams) or by a reduction; the global best is folded with a critical section. Two cases deserve a closer look and are discussed below.
 
+
+*Critical dependency: the stage loop.* The only dependency with no parallel resolution is the flow dependency carried across the stage loop: `position`, `speed`, and `best_min` written at stage $k$ are read at stage $k+1$. Unlike the others, this cannot be privatized or reduced away, because stage $k+1$ genuinely consumes the state produced at stage $k$. This is the formal reason the $k$ loop is executed serially in every variant, and why parallelism is applied at the shark, dimension and rotation levels instead. It contrasts sharply with `best` and `best_r3`, which are also loop-carried but only across the rotation loop $m$, where the carry is an associative maximum and therefore collapses cleanly into a reduction.
+
+*Critical dependency: the dimension loops.* Within a single stage, the speed update (line 81) and the forward-movement update (line 97) cannot be fused into one parallel loop over dimensions. The derivative read at line 75 may depend on the entire position vector (for example the Griewangk product term), so every per-dimension speed update must complete before any position component is overwritten. The two loops are therefore kept separate, relying on the implicit barrier at the end of the first `#pragma omp for`; fusing them would introduce a read-after-write race on `position`.
+
 #[
   #set text(size: 7pt)
   #figure(
@@ -246,10 +251,6 @@ The resolution of each dependency in the parallel variants is summarized in @tab
     caption: [Resolution of each data dependency in the OpenMP variants.],
   ) <tab-deps-res>
 ]
-
-*Critical dependency: the stage loop.* The only dependency with no parallel resolution is the flow dependency carried across the stage loop: `position`, `speed`, and `best_min` written at stage $k$ are read at stage $k+1$. Unlike the others, this cannot be privatized or reduced away, because stage $k+1$ genuinely consumes the state produced at stage $k$. This is the formal reason the $k$ loop is executed serially in every variant, and why parallelism is applied at the shark, dimension and rotation levels instead. It contrasts sharply with `best` and `best_r3`, which are also loop-carried but only across the rotation loop $m$, where the carry is an associative maximum and therefore collapses cleanly into a reduction.
-
-*Critical dependency: the dimension loops.* Within a single stage, the speed update (line 81) and the forward-movement update (line 97) cannot be fused into one parallel loop over dimensions. The derivative read at line 75 may depend on the entire position vector (for example the Griewangk product term), so every per-dimension speed update must complete before any position component is overwritten. The two loops are therefore kept separate, relying on the implicit barrier at the end of the first `#pragma omp for`; fusing them would introduce a read-after-write race on `position`.
 
 = Implementation
 /*
