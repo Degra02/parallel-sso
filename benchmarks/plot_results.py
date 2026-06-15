@@ -11,6 +11,10 @@ RESULT_PATTERN = re.compile(
     r"Total(?:\s+OpenMP)?\s+time:\s*(?P<time>[0-9]+(?:\.[0-9]+)?)\s*s"
 )
 
+SERIAL_TIME_PATTERN = re.compile(
+    r"Total(?:\s+OpenMP)?\s+time:\s*(?P<time>[0-9]+(?:\.[0-9]+)?)\s*s"
+)
+
 WEAK_HYBRID_PATTERN = re.compile(
     r"procs=(?P<procs>\d+)\s+"
     r"threads=(?P<threads>\d+)\s+"
@@ -30,18 +34,31 @@ LOG2_SCALE = "log\u2082 scale"
 COMBINED_WORKER_X_LABEL = f"Number of processes/threads ({LOG2_SCALE})"
 HYBRID_WORKER_X_LABEL = f"Number of workers, N = P \u00d7 T ({LOG2_SCALE})"
 
-STRONG_SPEEDUP_Y_LABEL = "Speedup, S = T\u2081 / T\u2099"
+STRONG_SPEEDUP_Y_LABEL = "Speedup, S = Tserial / T\u2099"
 STRONG_EFFICIENCY_Y_LABEL = "Efficiency, E = S / N"
-HYBRID_STRONG_SPEEDUP_Y_LABEL = "Speedup, S = T(1,1) / T(P,T)"
+HYBRID_STRONG_SPEEDUP_Y_LABEL = "Speedup, S = Tserial / T(P,T)"
 HYBRID_STRONG_EFFICIENCY_Y_LABEL = "Efficiency, E = S / (P \u00d7 T)"
-WEAK_SPEEDUP_Y_LABEL = "Scaled speedup, S = N \u00d7 T\u2081 / T\u2099"
-WEAK_EFFICIENCY_Y_LABEL = "Weak-scaling efficiency, E = T\u2081 / T\u2099"
+WEAK_SPEEDUP_Y_LABEL = "Scaled speedup, S = N \u00d7 Tserial / T\u2099"
+WEAK_EFFICIENCY_Y_LABEL = "Weak-scaling efficiency, E = Tserial / T\u2099"
 HYBRID_WEAK_SPEEDUP_Y_LABEL = (
-    "Scaled speedup, S = (P \u00d7 T) \u00d7 T(1,1) / T(P,T)"
+    "Scaled speedup, S = (P \u00d7 T) \u00d7 Tserial / T(P,T)"
 )
 HYBRID_WEAK_EFFICIENCY_Y_LABEL = (
-    "Weak-scaling efficiency, E = T(1,1) / T(P,T)"
+    "Weak-scaling efficiency, E = Tserial / T(P,T)"
 )
+
+
+def read_serial_time(file_path: Path) -> float:
+    text = file_path.read_text(encoding="utf-8")
+    times = [
+        float(match.group("time"))
+        for match in SERIAL_TIME_PATTERN.finditer(text)
+    ]
+
+    if not times:
+        raise ValueError(f"No serial timing found in {file_path}")
+
+    return sum(times) / len(times)
 
 
 def parse_entries(file_path: Path):
@@ -111,17 +128,7 @@ def group_by_axis(entries, axis):
     return results
 
 
-def compute_metrics(results):
-    baseline_time = None
-
-    for axis_value, time_seconds in results:
-        if axis_value == 1:
-            baseline_time = time_seconds
-            break
-
-    if baseline_time is None:
-        raise ValueError("Baseline with 1 worker not found.")
-
+def compute_metrics(results, baseline_time):
     metrics = []
 
     for axis_value, time_seconds in results:
@@ -140,7 +147,7 @@ def compute_metrics(results):
     return metrics
 
 
-def compute_hybrid_global_metrics(entries):
+def compute_hybrid_global_metrics(entries, baseline_time):
     # Average the wall-clock time over repeated runs of the same (procs, threads).
     times_by_config = defaultdict(list)
     for entry in entries:
@@ -154,10 +161,6 @@ def compute_hybrid_global_metrics(entries):
         config: sum(times) / len(times)
         for config, times in times_by_config.items()
     }
-
-    if (1, 1) not in avg_time:
-        raise ValueError("Hybrid baseline with 1 process and 1 thread not found.")
-    baseline_time = avg_time[(1, 1)]
 
     metrics_by_procs = defaultdict(list)
 
@@ -194,6 +197,7 @@ def compute_weak_scaling_metrics(results, baseline_time):
                 "time": time_seconds,
                 "speedup": parallelism * efficiency,
                 "efficiency": efficiency,
+                "baseline_time": baseline_time,
             }
         )
 
@@ -227,7 +231,7 @@ def add_ideal_line(kind, x_values, baseline_time=None):
             raise ValueError("Weak-scaling time ideal requires a baseline time")
         plt.axhline(
             baseline_time,
-            label="Ideal weak scaling (T = T1)",
+            label="Ideal weak scaling (T = Tserial)",
             **IDEAL_LINE_STYLE,
         )
         return [baseline_time]
@@ -342,7 +346,7 @@ def plot_weak_scaling_series(
         )
 
         if ideal == "weak_time_by_series":
-            weak_time_baselines.append((label, y_values[0], line.get_color()))
+            weak_time_baselines.append((label, metrics[0]["baseline_time"], line.get_color()))
 
     if ideal == "weak_time_by_series":
         for label, baseline_time, color in weak_time_baselines:
@@ -351,7 +355,7 @@ def plot_weak_scaling_series(
                 color=color,
                 linestyle="--",
                 linewidth=1.2,
-                label=f"Ideal {label} (T = T1)",
+                label=f"Ideal {label} (T = Tserial)",
             )
             all_y.append(baseline_time)
     else:
@@ -376,7 +380,7 @@ def plot_weak_scaling_series(
     plt.close()
 
 
-def generate_weak_scaling_sharks_plots(raw_dir: Path, plots_dir: Path):
+def generate_weak_scaling_sharks_plots(raw_dir: Path, plots_dir: Path, baseline_time: float):
     weak_dir = raw_dir / "weak_scaling_sharks"
     hybrid_dir = raw_dir / "weak_scaling_hybrid_sharks"
     output_dir = plots_dir / "weak_scaling_sharks"
@@ -405,7 +409,7 @@ def generate_weak_scaling_sharks_plots(raw_dir: Path, plots_dir: Path):
         entries = parse_entries(file_path)
         results = group_by_axis(entries, axis)
         validate_weak_scaling_values(results, label)
-        metrics = compute_weak_scaling_metrics(results, results[0][1])
+        metrics = compute_weak_scaling_metrics(results, baseline_time)
         single_metrics[slug] = metrics
     openmp_mpi_series = [
         ("OpenMP threads", single_metrics["openmp"]),
@@ -441,11 +445,6 @@ def generate_weak_scaling_sharks_plots(raw_dir: Path, plots_dir: Path):
     )
 
     hybrid_entries = parse_weak_hybrid_entries(hybrid_dir)
-    baseline_time = next(
-        row["time"]
-        for row in hybrid_entries
-        if row["procs"] == 1 and row["threads"] == 1
-    )
     hybrid_series = []
 
     for procs in WEAK_SCALING_VALUES:
@@ -497,7 +496,7 @@ def generate_weak_scaling_sharks_plots(raw_dir: Path, plots_dir: Path):
         )
 
 
-def generate_weak_scaling_openmp_mpi_plots(raw_dir: Path, plots_dir: Path, strategy: str):
+def generate_weak_scaling_openmp_mpi_plots(raw_dir: Path, plots_dir: Path, strategy: str, baseline_time: float):
     """Weak-scaling OpenMP vs MPI for the dim and rot axes. Tolerates missing
     points (no strict value set), needs only an n=1 baseline per series."""
     weak_dir = raw_dir / f"weak_scaling_{strategy}"
@@ -517,9 +516,7 @@ def generate_weak_scaling_openmp_mpi_plots(raw_dir: Path, plots_dir: Path, strat
         except ValueError:
             continue
         results = group_by_axis(entries, axis)
-        if results[0][0] != 1:
-            continue
-        metrics = compute_weak_scaling_metrics(results, results[0][1])
+        metrics = compute_weak_scaling_metrics(results, baseline_time)
         series.append((label, metrics))
 
     if not series:
@@ -741,7 +738,7 @@ def plot_hybrid_by_procs(metrics_by_procs, output_dir, file_prefix, title_suffix
         plt.close()
 
 
-def generate_hybrid_global_plots(raw_dir: Path, output_dir: Path):
+def generate_hybrid_global_plots(raw_dir: Path, output_dir: Path, baseline_time: float):
     hybrid_dir = raw_dir / "hybrid_sharks"
 
     if not hybrid_dir.exists():
@@ -754,13 +751,13 @@ def generate_hybrid_global_plots(raw_dir: Path, output_dir: Path):
     if not entries:
         return
 
-    metrics_by_procs = compute_hybrid_global_metrics(entries)
+    metrics_by_procs = compute_hybrid_global_metrics(entries, baseline_time)
     plot_hybrid_by_procs(metrics_by_procs, output_dir, "hybrid_sharks_global", "", time_log_y=True)
 
 
-def generate_hybrid_perthread_plots(raw_dir: Path, output_dir: Path):
+def generate_hybrid_perthread_plots(raw_dir: Path, output_dir: Path, baseline_time: float):
     """Fixed-config hybrid view: x = OpenMP threads per process, one line per MPI
-    process count, each curve normalized to its own single-thread time T(p, 1)."""
+    process count, normalized against the matching serial baseline."""
     hybrid_dir = raw_dir / "hybrid_sharks"
 
     if not hybrid_dir.exists():
@@ -782,15 +779,12 @@ def generate_hybrid_perthread_plots(raw_dir: Path, output_dir: Path):
     metrics_by_procs = {}
     for procs in sorted({p for p, _ in avg_time}):
         rows = sorted((threads, avg_time[(procs, threads)]) for (p, threads) in avg_time if p == procs)
-        baseline = dict(rows).get(1)
-        if baseline is None:
-            continue
         metrics_by_procs[procs] = [
             {
                 "threads": threads,
                 "time": time_seconds,
-                "speedup": baseline / time_seconds,
-                "efficiency": (baseline / time_seconds) / threads,
+                "speedup": baseline_time / time_seconds,
+                "efficiency": (baseline_time / time_seconds) / (procs * threads),
             }
             for threads, time_seconds in rows
         ]
@@ -845,7 +839,7 @@ def generate_hybrid_perthread_plots(raw_dir: Path, output_dir: Path):
         plt.close()
 
 
-def generate_favorable_sharks_plots(raw_dir: Path, plots_dir: Path):
+def generate_favorable_sharks_plots(raw_dir: Path, plots_dir: Path, baseline_time: float):
     favorable_dir = raw_dir / "favorable_sharks"
 
     if not favorable_dir.exists():
@@ -864,7 +858,7 @@ def generate_favorable_sharks_plots(raw_dir: Path, plots_dir: Path):
     ):
         entries = parse_entries(favorable_dir / file_name)
         results = group_by_axis(entries, axis)
-        metrics = compute_metrics(results)
+        metrics = compute_metrics(results, baseline_time)
         openmp_mpi_series.append((label, axis, metrics))
 
     generate_family_plots(
@@ -884,7 +878,7 @@ def generate_favorable_sharks_plots(raw_dir: Path, plots_dir: Path):
         raise ValueError(f"No favorable hybrid results found under {favorable_dir}")
 
     hybrid_entries = parse_entries(hybrid_file)
-    metrics_by_procs = compute_hybrid_global_metrics(hybrid_entries)
+    metrics_by_procs = compute_hybrid_global_metrics(hybrid_entries, baseline_time)
     plot_hybrid_by_procs(
         metrics_by_procs,
         output_dir,
@@ -894,7 +888,7 @@ def generate_favorable_sharks_plots(raw_dir: Path, plots_dir: Path):
     )
 
 
-def generate_favorable_openmp_mpi_plots(raw_dir: Path, plots_dir: Path, strategy: str, log_y_metrics=None):
+def generate_favorable_openmp_mpi_plots(raw_dir: Path, plots_dir: Path, strategy: str, baseline_time: float, log_y_metrics=None):
     favorable_dir = raw_dir / f"favorable_{strategy}"
 
     if not favorable_dir.exists():
@@ -914,7 +908,7 @@ def generate_favorable_openmp_mpi_plots(raw_dir: Path, plots_dir: Path, strategy
             # File present but holds no parseable results yet.
             continue
         results = group_by_axis(entries, axis)
-        metrics = compute_metrics(results)
+        metrics = compute_metrics(results, baseline_time)
         series.append((label, axis, metrics))
 
     if not series:
@@ -939,6 +933,19 @@ def main():
     output_dir = script_dir / "plots"
     output_dir.mkdir(parents=True, exist_ok=True)
 
+    base_serial_time = read_serial_time(raw_dir / "serial_v2.txt")
+    favorite_serial_times = {
+        "sharks": read_serial_time(raw_dir / "favorable_sharks" / "serial_sharks_fav_results.txt"),
+        "dim": read_serial_time(raw_dir / "favorable_dim" / "serial_dim_fav_results.txt"),
+        "rot": read_serial_time(raw_dir / "favorable_rot" / "serial_rot_fav_results.txt"),
+    }
+    weak_serial_times = {
+        "sharks": base_serial_time,
+        "hybrid_sharks": base_serial_time,
+        "dim": read_serial_time(raw_dir / "weak_scaling_dim" / "serial_dim_weak_results.txt"),
+        "rot": read_serial_time(raw_dir / "weak_scaling_rot" / "serial_rot_weak_results.txt"),
+    }
+
     family_series = defaultdict(list)
 
     for file_path in sorted(raw_dir.rglob("*.txt")):
@@ -952,7 +959,7 @@ def main():
         entries = parse_entries(file_path)
         axis = infer_axis(entries)
         results = group_by_axis(entries, axis)
-        metrics = compute_metrics(results)
+        metrics = compute_metrics(results, base_serial_time)
         label = label_for_file(file_path)
         family_series[family].append((label, axis, metrics))
 
@@ -962,14 +969,14 @@ def main():
     for family_name, series_data in family_series.items():
         generate_family_plots(family_name, series_data, output_dir)
 
-    generate_hybrid_perthread_plots(raw_dir, output_dir)
-    generate_hybrid_global_plots(raw_dir, output_dir)
-    generate_weak_scaling_sharks_plots(raw_dir, output_dir)
-    generate_weak_scaling_openmp_mpi_plots(raw_dir, output_dir, "dim")
-    generate_weak_scaling_openmp_mpi_plots(raw_dir, output_dir, "rot")
-    generate_favorable_sharks_plots(raw_dir, output_dir)
-    generate_favorable_openmp_mpi_plots(raw_dir, output_dir, "dim")
-    generate_favorable_openmp_mpi_plots(raw_dir, output_dir, "rot")
+    generate_hybrid_perthread_plots(raw_dir, output_dir, base_serial_time)
+    generate_hybrid_global_plots(raw_dir, output_dir, base_serial_time)
+    generate_weak_scaling_sharks_plots(raw_dir, output_dir, weak_serial_times["sharks"])
+    generate_weak_scaling_openmp_mpi_plots(raw_dir, output_dir, "dim", weak_serial_times["dim"])
+    generate_weak_scaling_openmp_mpi_plots(raw_dir, output_dir, "rot", weak_serial_times["rot"])
+    generate_favorable_sharks_plots(raw_dir, output_dir, favorite_serial_times["sharks"])
+    generate_favorable_openmp_mpi_plots(raw_dir, output_dir, "dim", favorite_serial_times["dim"])
+    generate_favorable_openmp_mpi_plots(raw_dir, output_dir, "rot", favorite_serial_times["rot"])
 
 
 if __name__ == "__main__":
