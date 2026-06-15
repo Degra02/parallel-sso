@@ -5,3 +5,19 @@ procs=16 threads=8 Total time: 2.063619 s
 procs=16 threads=16 Total time: 0.974632 s
 procs=16 threads=32 Total time: 0.532987 s
 procs=16 threads=64 Total time: 0.346236 s
+
+procs=16 threads=1 Total time: 13.186428 s
+procs=16 threads=2 Total time: 7.426217 s
+procs=16 threads=4 Total time: 3.726308 s
+procs=16 threads=8 Total time: 1.849515 s
+procs=16 threads=16 Total time: 0.990218 s
+procs=16 threads=32 Total time: 0.559963 s
+procs=16 threads=64 Total time: 0.341833 s
+
+procs=16 threads=1 Total time: 12.566084 s
+procs=16 threads=2 Total time: 7.890496 s
+procs=16 threads=4 Total time: 3.972001 s
+procs=16 threads=8 Total time: 1.860035 s
+procs=16 threads=16 Total time: 0.977811 s
+procs=16 threads=32 Total time: 0.593307 s
+procs=16 threads=64 Total time: 0.363628 s

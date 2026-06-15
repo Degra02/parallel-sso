@@ -4,3 +4,17 @@ procs=64 threads=4 Total time: 0.990174 s
 procs=64 threads=8 Total time: 0.509336 s
 procs=64 threads=16 Total time: 0.343991 s
 procs=64 threads=32 Total time: 0.276816 s
+
+procs=64 threads=1 Total time: 4.068429 s
+procs=64 threads=2 Total time: 1.919940 s
+procs=64 threads=4 Total time: 0.961025 s
+procs=64 threads=8 Total time: 0.505951 s
+procs=64 threads=16 Total time: 0.296787 s
+procs=64 threads=32 Total time: 0.273577 s
+
+procs=64 threads=1 Total time: 3.644349 s
+procs=64 threads=2 Total time: 1.924651 s
+procs=64 threads=4 Total time: 0.968998 s
+procs=64 threads=8 Total time: 0.482835 s
+procs=64 threads=16 Total time: 0.317538 s
+procs=64 threads=32 Total time: 0.268260 s

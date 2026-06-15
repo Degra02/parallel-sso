@@ -141,27 +141,29 @@ def compute_metrics(results):
 
 
 def compute_hybrid_global_metrics(entries):
-    baseline_time = None
-
-    for entry in entries:
-        if entry["procs"] == 1 and entry["threads"] == 1:
-            baseline_time = entry["time"]
-            break
-
-    if baseline_time is None:
-        raise ValueError("Hybrid baseline with 1 process and 1 thread not found.")
-
-    metrics_by_procs = defaultdict(list)
-
+    # Average the wall-clock time over repeated runs of the same (procs, threads).
+    times_by_config = defaultdict(list)
     for entry in entries:
         procs = entry["procs"]
         threads = entry["threads"]
-
         if procs is None or threads is None:
             raise ValueError("Hybrid global metrics require both procs and threads.")
+        times_by_config[(procs, threads)].append(entry["time"])
 
+    avg_time = {
+        config: sum(times) / len(times)
+        for config, times in times_by_config.items()
+    }
+
+    if (1, 1) not in avg_time:
+        raise ValueError("Hybrid baseline with 1 process and 1 thread not found.")
+    baseline_time = avg_time[(1, 1)]
+
+    metrics_by_procs = defaultdict(list)
+
+    for (procs, threads), time_seconds in avg_time.items():
         workers = procs * threads
-        speedup = baseline_time / entry["time"]
+        speedup = baseline_time / time_seconds
         efficiency = speedup / workers
 
         metrics_by_procs[procs].append(
@@ -169,7 +171,7 @@ def compute_hybrid_global_metrics(entries):
                 "procs": procs,
                 "threads": threads,
                 "workers": workers,
-                "time": entry["time"],
+                "time": time_seconds,
                 "speedup": speedup,
                 "efficiency": efficiency,
             }
@@ -704,6 +706,93 @@ def generate_hybrid_global_plots(raw_dir: Path, output_dir: Path):
     plot_hybrid_by_procs(metrics_by_procs, output_dir, "hybrid_sharks_global", "", time_log_y=True)
 
 
+def generate_hybrid_perthread_plots(raw_dir: Path, output_dir: Path):
+    """Fixed-config hybrid view: x = OpenMP threads per process, one line per MPI
+    process count, each curve normalized to its own single-thread time T(p, 1)."""
+    hybrid_dir = raw_dir / "hybrid_sharks"
+
+    if not hybrid_dir.exists():
+        return
+
+    entries = []
+    for file_path in sorted(hybrid_dir.glob("*.txt")):
+        entries.extend(parse_entries(file_path))
+
+    if not entries:
+        return
+
+    # Average repeated runs of each (procs, threads).
+    times = defaultdict(list)
+    for entry in entries:
+        times[(entry["procs"], entry["threads"])].append(entry["time"])
+    avg_time = {config: sum(values) / len(values) for config, values in times.items()}
+
+    metrics_by_procs = {}
+    for procs in sorted({p for p, _ in avg_time}):
+        rows = sorted((threads, avg_time[(procs, threads)]) for (p, threads) in avg_time if p == procs)
+        baseline = dict(rows).get(1)
+        if baseline is None:
+            continue
+        metrics_by_procs[procs] = [
+            {
+                "threads": threads,
+                "time": time_seconds,
+                "speedup": baseline / time_seconds,
+                "efficiency": (baseline / time_seconds) / threads,
+            }
+            for threads, time_seconds in rows
+        ]
+
+    all_threads = sorted({row["threads"] for metrics in metrics_by_procs.values() for row in metrics})
+    x_label = f"Number of OpenMP threads per process ({LOG2_SCALE})"
+    specs = (
+        ("time", "Execution time (seconds)", "Execution Time", False),
+        ("speedup", STRONG_SPEEDUP_Y_LABEL, "Speedup", True),
+        ("efficiency", STRONG_EFFICIENCY_Y_LABEL, "Efficiency", False),
+    )
+
+    for metric_key, y_label, metric_title, log_y in specs:
+        plt.figure(figsize=(10, 5.5))
+        all_y = []
+
+        for procs, metrics in metrics_by_procs.items():
+            y_values = [row[metric_key] for row in metrics]
+            all_y.extend(y_values)
+            process_label = "process" if procs == 1 else "processes"
+            plt.plot(
+                [row["threads"] for row in metrics],
+                y_values,
+                marker="o",
+                linewidth=1.5,
+                markersize=4,
+                label=f"{procs} MPI {process_label}",
+            )
+
+        if metric_key == "speedup":
+            all_y.extend(add_ideal_line("strong_speedup", all_threads))
+        elif metric_key == "efficiency":
+            all_y.extend(add_ideal_line("strong_efficiency", all_threads))
+
+        plt.xscale("log", base=2)
+        plt.xticks(all_threads, [str(threads) for threads in all_threads])
+        plt.xlabel(x_label)
+        if log_y:
+            y_label = f"{y_label} ({LOG2_SCALE})"
+        plt.ylabel(y_label)
+        plt.title(f"Hybrid Sharks - {metric_title}")
+        plt.grid(True, alpha=0.3)
+        plt.legend()
+
+        if log_y:
+            plt.yscale("log", base=2)
+        elif metric_key == "efficiency":
+            apply_y_limits(all_y, (0, 1.05))
+
+        plt.tight_layout()
+        plt.savefig(output_dir / f"hybrid_sharks_{metric_key}.png", dpi=300)
+        plt.close()
+
+
 def generate_favorable_sharks_plots(raw_dir: Path, plots_dir: Path):
     favorable_dir = raw_dir / "favorable_sharks"
 
@@ -821,6 +910,7 @@ def main():
     for family_name, series_data in family_series.items():
         generate_family_plots(family_name, series_data, output_dir)
 
+    generate_hybrid_perthread_plots(raw_dir, output_dir)
     generate_hybrid_global_plots(raw_dir, output_dir)
     generate_weak_scaling_sharks_plots(raw_dir, output_dir)
     generate_favorable_sharks_plots(raw_dir, output_dir)
