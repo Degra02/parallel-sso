@@ -67,6 +67,8 @@ The study is structured as a controlled, point-by-point investigation: each inde
 
 == The Shark Smell Optimization Algorithm
 
+#figure(image("images/shark.png", width: 60%), caption: [Schematic illustration of a shark's movement to odor source.])
+
 The SSO @sso algorithm is a population-based metaheuristic inspired by sharks' ability to locate prey by sensing and following odor gradients.
 
 The method maintains a population of candidate solutions (`shark`s) that move through the search space combining global exploration and focused local exploitation.
@@ -86,7 +88,6 @@ The method maintains a population of candidate solutions (`shark`s) that move th
   caption: [Shark data structure],
 )
 
-#figure(image("images/shark.png", width: 60%), caption: [Schematic illustration of a shark's movement to odor source.])
 
 Each shark iteratively updates its position and speed based on a combination of inertia (momentum from previous movement) and attraction toward promising regions of the search space (global best or local neighborhood best). Additionally, a local rotational search is performed around improved sharks to refine their positions.
 
