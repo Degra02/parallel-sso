@@ -10,7 +10,7 @@
   abstract: [
     The Shark Smell Optimization (SSO) algorithm is a metaheuristic optimization technique inspired by the hunting behavior of sharks. Due to the high computational cost of population-based optimization, this paper presents various parallel implementations of SSO using MPI, OpenMP and hybrid MPI+OpenMP programming models. The MPI version distributes the population across processes, while the hybrid approach combines distributed-memory and shared-memory parallelism to improve resource utilization on multicore systems. Performance evaluation on standard benchmark functions analyzes execution time, speedup, and scalability for different population sizes and processor configurations.
 
-    Three decomposition strategies are investigated: shark-level (population), dimension-level, and rotation-level parallelism. Performance evaluation on the Rastrigin benchmark function with a standard configuration (np=1000, nd=200, k_max=1000, m=50) shows that shark-level decomposition achieves near-linear speedup in both MPI and OpenMP, reaching 43$times$ with 64 MPI processes and 50$times$ with 64 OpenMP threads. Dimension-level and rotation-level strategies exhibit poor scaling because their work granularity is too small to amortize synchronization and communication costs. The hybrid MPI+OpenMP shark-level implementation achieves the shortest wall-clock time, reaching 450$times$ over serial at p=64, t=32 (2048 total cores, 22% efficiency). Sizing the population to the machine (np=8192) removes this starvation: the hybrid then reaches about 570$times$ at 1024 cores at roughly 56% efficiency, and shark-level decomposition is shown to be weakly scalable as well.
+    Three decomposition strategies are investigated: shark-level (population), dimension-level, and rotation-level parallelism. Performance evaluation on the Rastrigin benchmark function with a standard configuration (np=1000, nd=200, k_max=1000, m=50) shows that shark-level decomposition achieves near-linear speedup in both MPI and OpenMP, reaching about 60$times$ with 64 MPI processes and about 55$times$ with 64 OpenMP threads. Dimension-level and rotation-level strategies exhibit poor scaling because their work granularity is too small to amortize synchronization and communication costs. The hybrid MPI+OpenMP shark-level implementation achieves the shortest wall-clock time, reaching roughly 640$times$ over serial at p=64, t=32 (2048 total cores, about 30% efficiency). Sizing the population to the machine (np=8192) removes this starvation: the hybrid then reaches about 560$times$ at 1024 cores at roughly 55% efficiency, and shark-level decomposition is shown to be weakly scalable as well.
   ],
   authors: (
     (
@@ -34,7 +34,7 @@
   figure-supplement: [Fig.],
 )
 
-// #outline()
+#outline()
 
 = Introduction
 /*
@@ -514,40 +514,31 @@ The next three subsections (varying processes, varying threads, and hybrid) all 
   caption: [Rotation-level decomposition: execution time, speedup, and efficiency for MPI (processes) and OpenMP (threads). Standard configuration: m=50.],
 ) <fig-rot-time>
 
-*Shark-level MPI.* The single-process baseline is approximately 124 s. Execution time halves at every doubling up to 16 processes (speedup 12.7$times$) and continues to improve to 2.9 s at 64 processes (speedup 42.7$times$, efficiency 67%). The mild super-linear behaviour visible at 8--16 processes is attributable to each rank's local population fitting more readily into cache. The efficiency decline at 64 processes reflects the growing relative cost of the final `MPI_Allreduce`.
+*Shark-level MPI.* Execution time roughly halves at every doubling of the process count, reaching about 60$times$ speedup at 64 processes at high efficiency. The slight efficiency decline at the largest counts reflects the growing relative cost of the final `MPI_Allreduce`.
 
-*Dimension-level MPI.* This variant shows no useful speedup. The single-process time of approximately 164 s rises to 399 s at 64 processes, which is more than 2.4$times$ slower. The root cause is the `MPI_Allgatherv` call required to reassemble the full position vector after each speed update: with np=1000 sharks and k_max=1000 stages the run issues roughly $10^6$ all-gather calls, each transferring 200 doubles. At high process counts the all-gather latency and bandwidth demand dominate the computation entirely.
+*Dimension-level MPI.* This variant shows no useful speedup: execution time grows with the process count and ends up several times slower than serial. The root cause is the `MPI_Allgatherv` call required to reassemble the full position vector after each speed update: with np=1000 sharks and k_max=1000 stages the run issues roughly $10^6$ all-gather calls, each transferring 200 doubles. At high process counts the all-gather latency and bandwidth demand dominate the computation entirely.
 
-*Rotation-level MPI.* With only 50 rotations per shark per stage, speedup saturates quickly. At 2 processes the speedup is 1.95$times$ (near-ideal); at 8 processes it reaches 4.5$times$ (efficiency 56%); beyond 8 processes performance degrades because each rank evaluates fewer than 7 probes per stage and the synchronization cost of the two-value `MPI_Allreduce` outweighs the saved computation. The favorable rotation configuration later in this section shows that this is a granularity limit, not an algorithmic one.
+*Rotation-level MPI.* With only 50 rotations per shark per stage, speedup saturates quickly. It peaks near 8 processes, at about 4.5$times$, then drops as each rank is left with too few probes and the per-stage reduction dominates. The favorable rotation configuration later shows this is a granularity limit, not an algorithmic one.
 
 == Varying number of threads (fixed configuration)
 
 The OpenMP results are included in the same figures as their MPI counterparts (@fig-sharks-time, @fig-dim-time, @fig-rot-time) to allow direct comparison.
 
-*Shark-level OpenMP.* Results closely follow the MPI shark variant. The single-thread baseline is approximately 160 s (slightly higher than the MPI p=1 baseline because OpenMP thread-team initialisation is charged to the timed region). At 64 threads the time drops to 3.2 s, giving a speedup of 50$times$ and efficiency of 78%. The shared-memory model eliminates all inter-process communication; the only synchronization is a single `#pragma omp critical` block at the end of the parallel region to fold per-thread best values into the global best. OpenMP therefore achieves higher efficiency than MPI at the same worker count, as the communication term is entirely absent.
+*Shark-level OpenMP.* Results closely follow the MPI shark variant, reaching about 55$times$ at 64 threads. The shared-memory model eliminates all inter-process communication; the only synchronization is a single `#pragma omp critical` block at the end of the parallel region to fold per-thread best values into the global best.
 
-*Dimension-level OpenMP.* Performance is essentially flat or worse across all thread counts. The single-thread time is approximately 160 s; at 64 threads it reaches approximately 241 s, a slowdown of 1.5$times$. Each `#pragma omp for` loop carries an implicit barrier at its end, generating one barrier per dimension-update pass, per shark, per stage. With the standard parameters this amounts to $2 times n_p times k_"max" = 2 times 10^6$ barriers per run, each with negligibly small work inside. The synchronization overhead dominates entirely, confirming that dimension-level parallelism requires a much heavier per-dimension kernel to be viable.
+*Dimension-level OpenMP.* Performance is essentially flat or worse across all thread counts, ending up slower than serial at high thread counts. Each `#pragma omp for` loop carries an implicit barrier at its end, generating one barrier per dimension-update pass, per shark, per stage. With the standard parameters this amounts to $2 times n_p times k_"max" = 2 times 10^6$ barriers per run, each with negligibly small work inside. The synchronization overhead dominates entirely.
 
 *Rotation-level OpenMP.* The standard (m=50) variant scales poorly. The parallel region is opened only once, so there is no per-stage thread fork/join, but each stage still pays two implicit barriers (the `#pragma omp single` that runs the serial velocity and position update, and the `#pragma omp for` over the probes), for $2 times n_p times k_"max" = 2 times 10^6$ barriers per run. With only 50 probes to share, the work between those barriers is tiny, and the serial `single` section is a fixed per-stage cost. Adding threads beyond a handful therefore yields little, and the per-stage overhead keeps efficiency low. The favorable rotation configuration later in this section shows the picture improving once M is large.
 
 == Hybrid parallelism (fixed configuration)
 
-@fig-hybrid shows execution time, speedup and efficiency for the hybrid MPI+OpenMP shark-level implementation as a function of the number of threads per process, with the number of MPI processes varied from 1 to 64.
+@fig-hybrid-global shows execution time, speedup and efficiency for the hybrid MPI+OpenMP shark-level implementation, with each curve a fixed number of MPI processes and the x-axis the total worker count $P times T$.
 
-#figure(
-  grid(rows: 3, gutter: 4pt,
-    image("images/hybrid_sharks_time.png"),
-    image("images/hybrid_sharks_speedup.png"),
-    image("images/hybrid_sharks_efficiency.png"),
-  ),
-  caption: [Hybrid MPI+OpenMP shark-level implementation: execution time, speedup, and efficiency. Each line corresponds to a fixed number of MPI processes; the x-axis is the number of OpenMP threads per process.],
-) <fig-hybrid>
+For a fixed number of MPI processes, adding OpenMP threads reduces execution time near-linearly up to roughly 16--32 threads per process, after which gains diminish. The best raw result is p=64, t=32 (2048 total cores), about 640$times$ faster than serial at roughly 30% efficiency, which reflects the thin per-rank population at that configuration.
 
-For a fixed number of MPI processes, adding OpenMP threads reduces execution time near-linearly up to roughly 16--32 threads per process, after which gains diminish. With p=8 processes and t=64 threads (512 total cores), execution time drops to 0.54 s, giving a speedup of approximately 230$times$ at 45% efficiency. The best raw result is p=64, t=32 (2048 total cores) at 0.277 s, which is 450$times$ faster than the serial baseline of 124.6 s. That corresponds to a parallel efficiency of 22%, which reflects the thin per-rank population (roughly 16 sharks per MPI process) at that configuration.
+Comparing hybrid to pure MPI at the same total worker count $P times T$, pure MPI wins at 64 workers (about 60$times$ against about 48$times$ for the 8-process, 8-thread hybrid) because its inter-process reduction is cheap for a small reduction vector. As the total worker count grows further, however, the hybrid scales better: it reaches counts such as 1024 and 2048, where pure MPI would assign fewer than one shark per rank.
 
-Comparing hybrid to pure-MPI at the same total worker count $P times T$ reveals a consistent advantage for the hybrid configuration at high total counts. Eight MPI processes with 8 threads each (64 total workers) complete in 3.71 s (speedup 33.4$times$, efficiency 52%), while pure MPI at 64 processes completes in 2.91 s (speedup 42.7$times$, efficiency 67%). Pure MPI wins at 64 total workers because the inter-process reduction is cheap for a small reduction vector. However, as the total worker count grows further, the hybrid approach scales better: with p=16 and t=64 (1024 total workers) the time is 0.35 s, a regime where pure MPI at 1024 processes would face severe load imbalance since each rank would hold fewer than one shark.
-
-Efficiency drops below 30% at very high combined counts (p=32, t=32 or p=64, t=16) because the local population per rank falls to 1--2 sharks and any imbalance in per-shark computation time is magnified. The practical operating point for this problem size is around p=8--16 processes and t=8--32 threads, yielding speedups of 50--230$times$ with efficiencies of 30--52%.
+Efficiency falls off only at the very largest combined counts, where the local population per rank drops to one or two sharks and any imbalance in per-shark cost is magnified.
 
 \
 
@@ -560,12 +551,10 @@ Efficiency drops below 30% at very high combined counts (p=32, t=32 or p=64, t=1
   caption: [Hybrid MPI+OpenMP shark-level implementation, global view: execution time, speedup, and efficiency measured against the serial baseline $T(1,1)$. Each line corresponds to a fixed number of MPI processes; the x-axis is the total number of workers $P times T$ on a log2 scale.],
 ) <fig-hybrid-global>
 
-The plots in @fig-hybrid normalize each curve to its own single-thread time, which isolates the effect of adding threads to a fixed process count but hides the comparison across different process counts. @fig-hybrid-global instead normalizes every configuration to the true serial baseline `T(1,1)` and places the total worker count $P times T$ on a common log2 axis, so that all hybrid configurations can be read against one another and against serial execution directly.
+@fig-hybrid-global normalizes every configuration to the serial baseline and places the total worker count $P times T$ on a common log2 axis, so that all hybrid configurations can be read against one another and against serial execution directly.
 
 
-The efficiency plot is the clearest result: the curves for every process count collapse onto one envelope, falling from about 60% at low worker counts to about 22% at 2048 workers. Efficiency depends on the total worker count $P times T$, not on how it is split between MPI processes and OpenMP threads. Trading processes for threads at a fixed total core count does not improve efficiency; it only changes whether that core count can be reached at all.
-
-This reframes the pure-MPI versus hybrid comparison. Hybrid is not more efficient than pure MPI at equal worker count; it wins by reaching worker counts (1024, 2048) that pure MPI cannot, since there pure MPI would assign fewer than one shark per rank. The time curve confirms this: all splits fall on one time-versus-workers trajectory that bottoms out below one second, while speedup climbs to the 450$times$ peak at 2048 workers. In short, efficiency stays at or above 45% while the total worker count is at most about 512, beyond which the per-rank population becomes too thin regardless of the split.
+Efficiency depends on the total worker count $P times T$, not on how it is split between MPI processes and OpenMP threads. Trading processes for threads at a fixed total core count does not improve efficiency; it only changes whether that core count can be reached at all.
 
 == Favorable configuration (shark-level)
 
@@ -589,11 +578,11 @@ The fixed configuration starves the shark axis at high worker counts. The favora
   caption: [Favorable shark configuration (`np` = 8192), hybrid MPI+OpenMP: execution time, speedup, and efficiency against the serial baseline.],
 ) <fig-fav-sharks-hybrid>
 
-The effect is exactly the one predicted by the starvation analysis. With a large population the efficiency no longer collapses at high worker counts: the pure variants stay strongly scalable across the full process and thread range, and the hybrid run sustains a far higher efficiency at 1024 cores than the fixed configuration did, where efficiency had fallen to about 22%. This confirms that the poor efficiency of the fixed hybrid at its peak was an artifact of insufficient population per core, not a limit of the decomposition. The decomposition strategy is unchanged; only the workload is sized to the machine.
+With a large population the efficiency no longer collapses at high worker counts. The pure variants stay strongly scalable across the full process and thread range, and the hybrid run keeps much higher efficiency at 1024 cores than the fixed configuration reached at its largest counts. The poor efficiency of the fixed hybrid was therefore due to too few sharks per core, not to the decomposition itself: the strategy is unchanged, only the workload is sized to the machine.
 
 == Favorable configuration (dimension-level)
 
-The favorable dimension configuration (`nd` = $10^8$ with only 5 sharks and 5 stages, see @tab-configs) makes the dimension axis dominant. @fig-fav-dim shows the OpenMP variant (the y-axis is log2 to make the small spread legible). Even with a dimension count far above the worker count, scaling plateaus early: execution time falls from about 111 s at one thread to roughly 48 s at 8 threads, then flattens to about 42 s at 64 threads, a ceiling near 2.6$times$. With `M` = 0 there is no rotation search and the stage count is tiny, so synchronization is not the bottleneck; the limit is memory bandwidth. The position vector alone is about 800 MB, and every stage streams it through the per-dimension update, so once a few threads saturate the socket's bandwidth additional threads add little. Dimension-level decomposition is therefore bandwidth-bound rather than compute-bound, even at extreme `nd`.
+The favorable dimension configuration (`nd` = $10^8$ with only 5 sharks and 5 stages, see @tab-configs) makes the dimension axis dominant. @fig-fav-dim shows both variants (log2 y-axis); the MPI points stop early because replicating the full position vector on every rank exhausts memory at high process counts. Speedup still hits a ceiling near 2.3$times$: with `M` = 0 the limit is memory bandwidth, not synchronization. The position vector alone is about 800 MB and is streamed every stage, so a few threads saturate the socket's bandwidth and more add little. Dimension-level decomposition is bandwidth-bound, even at extreme `nd`.
 
 #figure(
   grid(rows: 3, gutter: 4pt,
@@ -601,12 +590,12 @@ The favorable dimension configuration (`nd` = $10^8$ with only 5 sharks and 5 st
     image("images/favorable_dim_openmp_mpi_speedup.png"),
     image("images/favorable_dim_openmp_mpi_efficiency.png"),
   ),
-  caption: [Favorable dimension configuration (`nd` = $10^8$): execution time (log2 y-axis), speedup, and efficiency for the OpenMP variant.],
+  caption: [Favorable dimension configuration (`nd` = $10^8$): execution time (log2 y-axis), speedup, and efficiency for MPI (processes) and OpenMP (threads); MPI stops at 16 processes, beyond which per-rank vector replication exhausts memory.],
 ) <fig-fav-dim>
 
 == Favorable configuration (rotation-level)
 
-The favorable rotation configuration (`M` = 20000 with 16 sharks, see @tab-configs) makes the rotation axis dominant, with far more probes than workers. @fig-fav-rot shows both pure variants. The MPI variant scales strongly, reaching about 40$times$ at 64 processes (roughly 63% efficiency): each rank evaluates a large independent slice of the 20000 probes, and the single per-stage `MAXLOC` reduction is cheap relative to that work. The OpenMP variant is weaker, reaching about 8$times$ at 64 threads (roughly 13% efficiency) and flattening beyond 16 threads, limited by the per-stage barriers of its parallel region and the serial speed and position update that precedes the rotation loop. Either way, the result confirms that the poor rotation scaling under the fixed configuration was a granularity artifact of `M` = 50, not an algorithmic limit: given enough probes, rotation-level parallelism scales, most effectively under MPI.
+The favorable rotation configuration (`M` = 20000 with 16 sharks, see @tab-configs) makes the rotation axis dominant, with far more probes than workers. @fig-fav-rot shows both pure variants. The MPI variant scales strongly, reaching about 40$times$ at 64 processes: each rank evaluates a large slice of the 20000 probes, and the per-stage `MAXLOC` reduction is cheap relative to that work. The OpenMP variant is weaker, reaching only about 11$times$ and flattening beyond 16 threads, limited by the per-stage barriers and the serial update before the rotation loop.
 
 #figure(
   grid(rows: 3, gutter: 4pt,
@@ -683,11 +672,11 @@ All experiments were executed on the HPC cluster using the PBS scheduler in `exc
 
 This paper studied seven parallel variants of the Shark Smell Optimization algorithm: three decomposition strategies (shark-level, dimension-level, rotation-level) under both MPI and OpenMP, plus a hybrid MPI+OpenMP implementation at the shark level.
 
-The central finding is that the decomposition strategy matters far more than the programming model. Shark-level decomposition is highly parallel and scales almost linearly with worker count in both MPI and OpenMP, reaching 43$times$ at 64 MPI processes and 50$times$ at 64 OpenMP threads on the Rastrigin benchmark. Dimension-level and rotation-level decompositions both fail to scale under the standard parameter set because their work granularity (a single gradient evaluation or a single rotation probe) is too small to amortize synchronization and communication costs. With a larger rotation count, rotation-level MPI recovers and reaches 20$times$ at 64 processes, confirming that these strategies are viable only when the per-unit workload is sufficient.
+The central finding is that the decomposition strategy matters far more than the programming model. Shark-level decomposition is highly parallel and scales almost linearly with worker count in both MPI and OpenMP, reaching about 60$times$ at 64 MPI processes and about 55$times$ at 64 OpenMP threads on the Rastrigin benchmark. Dimension-level and rotation-level decompositions both fail to scale under the standard parameter set because their work granularity (a single gradient evaluation or a single rotation probe) is too small to amortize synchronization and communication costs. With a larger rotation count, rotation-level MPI recovers and reaches about 40$times$ at 64 processes, confirming that these strategies are viable only when the per-unit workload is sufficient.
 
-The hybrid MPI+OpenMP shark-level variant combines the two scalable axes and achieves the shortest wall-clock time: 0.277 s at p=64, t=32 (2048 total cores), a 450$times$ reduction over the serial baseline at 22% efficiency. The practical operating point for the standard problem size is p=8--16 processes and t=8--32 threads, which yields 50$times$--230$times$ speedup at 30--52% efficiency with far fewer resources.
+The hybrid MPI+OpenMP shark-level variant combines the two scalable axes and achieves the shortest wall-clock time: about 640$times$ over serial at p=64, t=32 (2048 total cores), at roughly 30% efficiency. The practical operating point for the standard problem size is p=8--16 processes and t=8--32 threads, which reaches most of the speedup at far higher efficiency and with far fewer resources.
 
-These efficiency figures are bounded by the fixed configuration itself: at high worker counts the population is too small to keep every core busy. Re-running the shark variants with a favorable population (`np` = 8192) confirms this. The pure MPI variant reaches 45$times$ at 64 processes (71% efficiency) and the hybrid variant reaches roughly 570$times$ at 1024 cores (about 56% efficiency), more than double the efficiency of the fixed hybrid at its peak and with half the cores. The same favorable workload is also weakly scalable: execution time stays nearly flat as the population grows with the worker count, since shark-level decomposition coordinates only through a single final reduction. The decomposition is therefore both strongly and weakly scalable when the workload is sized to the machine.
+These efficiency figures are bounded by the fixed configuration itself: at high worker counts the population is too small to keep every core busy. Re-running with a favorable population (`np` = 8192) confirms this, the hybrid reaching roughly 560$times$ at 1024 cores (about 55% efficiency). The same workload is also weakly scalable, since shark-level decomposition coordinates only through a single final reduction.
 
 Two limitations apply broadly. First, population-level load balance relies on uniform per-shark cost; if the objective function evaluation becomes problem-dependent and variable, work stealing or dynamic scheduling would be needed. Second, none of the variants exploit GPU acceleration, which would be particularly natural for the embarrassingly parallel rotation search and could extend the speedup by another order of magnitude.
 
