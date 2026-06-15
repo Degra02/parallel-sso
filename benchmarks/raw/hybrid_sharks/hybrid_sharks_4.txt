@@ -6,16 +6,16 @@ procs=4 threads=16 Total time: 3.646703 s
 procs=4 threads=32 Total time: 1.898143 s
 procs=4 threads=64 Total time: 1.150250 s
 
-procs=4 threads=1 Total time: 31.077878 s
-procs=4 threads=2 Total time: 15.892584 s
+procs=4 threads=1 Total time: 45.478195 s
+procs=4 threads=2 Total time: 24.885421 s
 procs=4 threads=4 Total time: 13.019790 s
 procs=4 threads=8 Total time: 7.690299 s
 procs=4 threads=16 Total time: 3.760426 s
 procs=4 threads=32 Total time: 1.926337 s
 procs=4 threads=64 Total time: 1.018233 s
 
-procs=4 threads=1 Total time: 31.212706 s
-procs=4 threads=2 Total time: 16.211914 s
+procs=4 threads=1 Total time: 47.415509 s
+procs=4 threads=2 Total time: 23.123441 s
 procs=4 threads=4 Total time: 13.028645 s
 procs=4 threads=8 Total time: 7.758114 s
 procs=4 threads=16 Total time: 3.800892 s

@@ -1,1 +1,1 @@
-Total time: 124.570354 s
+Total time: 174.813724 s
