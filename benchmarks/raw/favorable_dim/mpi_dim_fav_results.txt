@@ -1,8 +1,17 @@
 procs=1 Total time: 86.833211 s
 procs=2 Total time: 86.911426 s
+procs=4 Total time: 64.295887 s
+procs=8 Total time: 58.053960 s
+procs=16 Total time: 59.589668 s
 
 procs=1 Total time: 108.623042 s
 procs=2 Total time: 84.186830 s
+procs=4 Total time: 70.961303 s
+procs=8 Total time: 67.338538 s
+procs=16 Total time: 78.331968 s
 
 procs=1 Total time: 105.331422 s
 procs=2 Total time: 83.363830 s
+procs=4 Total time: 75.709434 s
+procs=8 Total time: 57.950600 s
+procs=16 Total time: 59.771559 s
