@@ -34,6 +34,8 @@
   figure-supplement: [Fig.],
 )
 
+// #outline()
+
 = Introduction
 /*
 An accurate description of the assigned project should be provided, including analysis of the sequential algorithm that solves the problem addressed in the project.
@@ -638,9 +640,35 @@ All results so far are strong scaling: a fixed problem solved with more workers.
 
 Because shark-level decomposition coordinates only through one final reduction, the per-worker work is essentially independent of the worker count, so execution time stays nearly flat as the population and workers grow together. The weak-scaling efficiency remains high and degrades only slowly, driven by the growing cost of the final reduction rather than by the per-shark computation. This is the complementary view to the strong-scaling results: shark-level decomposition is both strongly and weakly scalable.
 
-== Weak scaling (dimensions-level)
+== Weak scaling (dimension-level)
+
+For the dimension axis the per-worker load is held constant by growing the problem dimensionality `nd` in proportion to the worker count (100000 dimensions per worker, with `np` = 5, k_max = 20 and no rotation). @fig-weak-dim reports the pure MPI and OpenMP variants.
+
+#figure(
+  grid(rows: 3, gutter: 4pt,
+    image("images/weak_scaling_openmp_mpi_dim_time.png"),
+    image("images/weak_scaling_openmp_mpi_dim_speedup.png"),
+    image("images/weak_scaling_openmp_mpi_dim_efficiency.png"),
+  ),
+  caption: [Weak scaling, dimension-level: execution time, speedup, and efficiency for MPI (processes) and OpenMP (threads) as `nd` grows with the worker count.],
+) <fig-weak-dim>
+
+Dimension-level decomposition is not weakly scalable. Execution time rises with the worker count instead of staying flat for both the MPI and OpenMP variants, so weak-scaling efficiency falls to a few percent. The cause is the one already seen under strong scaling, that every stage reassembles the full position vector, so communication and memory-bandwidth demand grow with the worker count even though each worker owns a constant slice of dimensions.
 
 == Weak scaling (rotation-level)
+
+For the rotation axis the per-worker load is held constant by growing the number of rotational probes `M` with the worker count (300 probes per worker, with `np` = 16, nd = 200 and k_max = 100). @fig-weak-rot reports the pure MPI and OpenMP variants.
+
+#figure(
+  grid(rows: 3, gutter: 4pt,
+    image("images/weak_scaling_openmp_mpi_rot_time.png"),
+    image("images/weak_scaling_openmp_mpi_rot_speedup.png"),
+    image("images/weak_scaling_openmp_mpi_rot_efficiency.png"),
+  ),
+  caption: [Weak scaling, rotation-level: execution time, speedup, and efficiency for MPI (processes) and OpenMP (threads) as `M` grows with the worker count.],
+) <fig-weak-rot>
+
+Rotation-level decomposition weak-scales well, especially under MPI. The MPI variant stays nearly flat as the worker count grows: the probes are split across ranks, and the workers only need to agree on the single best probe at the end of each step, a small exchange that does not grow with `M`. The OpenMP variant stays efficient up to a moderate thread count and then slows down, because adding threads on one node increases memory traffic and makes the shared reduction more costly.
 
 == Playing with PBS
 

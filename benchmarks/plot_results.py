@@ -497,6 +497,58 @@ def generate_weak_scaling_sharks_plots(raw_dir: Path, plots_dir: Path):
         )
 
 
+def generate_weak_scaling_openmp_mpi_plots(raw_dir: Path, plots_dir: Path, strategy: str):
+    """Weak-scaling OpenMP vs MPI for the dim and rot axes. Tolerates missing
+    points (no strict value set), needs only an n=1 baseline per series."""
+    weak_dir = raw_dir / f"weak_scaling_{strategy}"
+    if not weak_dir.exists():
+        return
+
+    series = []
+    for label, file_name, axis in (
+        ("OpenMP threads", f"weak_scaling_openmp_{strategy}.txt", "threads"),
+        ("MPI processes", f"weak_scaling_mpi_{strategy}.txt", "procs"),
+    ):
+        file_path = weak_dir / file_name
+        if not file_path.exists() or file_path.stat().st_size == 0:
+            continue
+        try:
+            entries = parse_entries(file_path)
+        except ValueError:
+            continue
+        results = group_by_axis(entries, axis)
+        if results[0][0] != 1:
+            continue
+        metrics = compute_weak_scaling_metrics(results, results[0][1])
+        series.append((label, metrics))
+
+    if not series:
+        return
+
+    output_dir = plots_dir / f"weak_scaling_{strategy}"
+    output_dir.mkdir(parents=True, exist_ok=True)
+    for old_plot in output_dir.glob(f"weak_scaling_openmp_mpi_{strategy}_*.png"):
+        old_plot.unlink()
+
+    name = {"dim": "Dimensions", "rot": "Rotations"}.get(strategy, strategy.title())
+    specs = (
+        ("time", "Execution time (seconds)", "Execution Time", "weak_time_by_series", None),
+        ("speedup", WEAK_SPEEDUP_Y_LABEL, "Scaled Speedup", "weak_speedup", None),
+        ("efficiency", WEAK_EFFICIENCY_Y_LABEL, "Weak-Scaling Efficiency", "weak_efficiency", (0, 1.05)),
+    )
+    for metric_key, y_label, title_word, ideal, y_limits in specs:
+        plot_weak_scaling_series(
+            series,
+            metric_key,
+            y_label,
+            f"OpenMP vs MPI {name} - {title_word}",
+            output_dir / f"weak_scaling_openmp_mpi_{strategy}_{metric_key}.png",
+            COMBINED_WORKER_X_LABEL,
+            ideal=ideal,
+            y_limits=y_limits,
+        )
+
+
 def plot_metric(metrics, x_label, y_key, y_label, title, output_path, y_limits=None):
     workers = [row["workers"] for row in metrics]
     values = [row[y_key] for row in metrics]
@@ -913,6 +965,8 @@ def main():
     generate_hybrid_perthread_plots(raw_dir, output_dir)
     generate_hybrid_global_plots(raw_dir, output_dir)
     generate_weak_scaling_sharks_plots(raw_dir, output_dir)
+    generate_weak_scaling_openmp_mpi_plots(raw_dir, output_dir, "dim")
+    generate_weak_scaling_openmp_mpi_plots(raw_dir, output_dir, "rot")
     generate_favorable_sharks_plots(raw_dir, output_dir)
     generate_favorable_openmp_mpi_plots(raw_dir, output_dir, "dim")
     generate_favorable_openmp_mpi_plots(raw_dir, output_dir, "rot")

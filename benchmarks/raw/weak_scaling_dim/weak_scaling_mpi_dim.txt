@@ -1,0 +1,6 @@
+procs=1 Total time: 0.326980 s
+procs=2 Total time: 0.553230 s
+procs=4 Total time: 1.160521 s
+procs=8 Total time: 2.474173 s
+procs=16 Total time: 5.631116 s
+procs=32 Total time: 11.241587 s
